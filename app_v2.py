@@ -6,10 +6,8 @@ from datetime import datetime
 
 import joblib
 import pandas as pd
-import qrcode
 import streamlit as st
 from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 
 
 DATA_FILE = "swim_data.xlsx"
@@ -141,18 +139,6 @@ def create_pdf_report(title, lines, report_id):
     buffer = BytesIO()
     c = canvas.Canvas(buffer)
 
-    qr_text = "\n".join([
-        "Yuzme Performansi Tahmin Raporu",
-        f"Rapor No: {report_id}",
-        f"Baslik: {fix_pdf_text(title)}",
-    ])
-
-    qr_img = qrcode.make(qr_text)
-    qr_buffer = BytesIO()
-    qr_img.save(qr_buffer, format="PNG")
-    qr_buffer.seek(0)
-
-    c.drawImage(ImageReader(qr_buffer), 470, 720, width=80, height=80)
 
     c.setFont("Helvetica", 14)
     c.drawString(40, 800, fix_pdf_text(title))
