@@ -98,14 +98,13 @@ def load_prediction_model(model_file):
     model_path = Path(model_file)
 
     if not model_path.exists():
-        model_path = Path("models") / model_path.name
+        model_path = Path(model_file.replace("\\", "/"))
 
     if not model_path.exists():
         st.error(f"Model dosyası bulunamadı: {model_path}")
         st.stop()
 
     return joblib.load(model_path)
-
 
 def get_default_value(feature):
     default_values = {
