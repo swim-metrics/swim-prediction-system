@@ -175,24 +175,44 @@ def setup_pdf_font():
 PDF_FONT = setup_pdf_font()
 
 
+def fix_pdf_text(text):
+    replacements = {
+        "ç": "c", "Ç": "C",
+        "ğ": "g", "Ğ": "G",
+        "ı": "i", "İ": "I",
+        "ö": "o", "Ö": "O",
+        "ş": "s", "Ş": "S",
+        "ü": "u", "Ü": "U",
+        "²": "2",
+        "±": "+/-",
+    }
+
+    text = str(text)
+
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    return text
+
+
 def create_pdf_report(title, lines):
     buffer = BytesIO()
     c = canvas.Canvas(buffer)
 
-    c.setFont(PDF_FONT, 14)
-    c.drawString(40, 800, title)
+    c.setFont("Helvetica", 14)
+    c.drawString(40, 800, fix_pdf_text(title))
 
-    c.setFont(PDF_FONT, 10)
+    c.setFont("Helvetica", 10)
 
     y = 770
 
     for line in lines:
-        c.drawString(40, y, str(line))
+        c.drawString(40, y, fix_pdf_text(line))
         y -= 18
 
         if y < 50:
             c.showPage()
-            c.setFont(PDF_FONT, 10)
+            c.setFont("Helvetica", 10)
             y = 800
 
     c.save()
