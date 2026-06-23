@@ -1,19 +1,19 @@
 import json
+import uuid
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
 
 import joblib
 import pandas as pd
+import qrcode
 import streamlit as st
 from reportlab.pdfgen import canvas
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
+from reportlab.lib.utils import ImageReader
 
 
 DATA_FILE = "swim_data.xlsx"
 METADATA_FILE = "model_metadata.json"
-
 
 STYLE_TR = {
     "freestyle": "50 m Serbest Stil",
@@ -77,28 +77,20 @@ FEATURE_LABELS_TR = {
 FEATURE_LABELS_EN = {k: k.replace("_", " ").title() for k in FEATURE_LABELS_TR.keys()}
 
 
-st.set_page_config(
-    page_title="Swimming Prediction System",
-    layout="centered"
-)
+st.set_page_config(page_title="Swimming Prediction System", layout="centered")
 
 
 @st.cache_resource
 def load_system():
     df = pd.read_excel(DATA_FILE)
-
     with open(METADATA_FILE, "r", encoding="utf-8") as f:
         metadata = json.load(f)
-
     return df, metadata
 
 
 @st.cache_resource
 def load_prediction_model(model_file):
-    model_path = Path(model_file)
-
-    if not model_path.exists():
-        model_path = Path(model_file.replace("\\", "/"))
+    model_path = Path(str(model_file).replace("\\", "/"))
 
     if not model_path.exists():
         st.error(f"Model dosyası bulunamadı: {model_path}")
@@ -106,106 +98,64 @@ def load_prediction_model(model_file):
 
     return joblib.load(model_path)
 
+
 def get_default_value(feature):
-    default_values = {
-        "age": 15,
-        "body_height": 160.0,
-        "body_mass": 55.0,
-        "training_age": 4.0,
-        "vertical_jump": 35.0,
-        "standing_long_jump": 180.0,
-        "flexed_arm_hang": 30.0,
-        "sit_ups_1min": 35,
-        "illinois_agility_test": 18.0,
-        "sprint_30m": 5.0,
-        "hand_length": 17.0,
-        "arm_span": 165.0,
-        "arm_length": 65.0,
-        "leg_length": 80.0,
-        "sitting_height": 80.0,
-        "chest_girth": 80.0,
-        "biceps_girth": 25.0,
-        "flexed_biceps_girth": 27.0,
-        "forearm_girth": 22.0,
-        "thigh_girth": 45.0,
-        "calf_girth": 32.0,
-        "waist_girth": 70.0,
-        "hip_girth": 85.0,
-        "biacromial_breadth": 35.0,
-        "biiliac_breadth": 28.0,
-        "elbow_breadth": 6.0,
-        "wrist_breadth": 5.0,
-        "knee_breadth": 8.0,
-        "ankle_breadth": 6.0,
-        "sit_and_reach": 20.0,
-        "trunk_extension_height": 35.0,
-        "shoulder_extension_height": 40.0,
-        "shoulder_mobility": 0.0,
-        "flamingo_balance_test": 10.0,
-        "body_density": 1.05,
-        "body_fat_percentage": 15.0,
-        "fat_mass": 8.0,
-        "fat_free_mass": 45.0,
-        "handgrip_strength": 30.0,
+    defaults = {
+        "age": 15, "body_height": 160.0, "body_mass": 55.0, "training_age": 4.0,
+        "vertical_jump": 35.0, "standing_long_jump": 180.0,
+        "flexed_arm_hang": 30.0, "sit_ups_1min": 35,
+        "illinois_agility_test": 18.0, "sprint_30m": 5.0,
+        "hand_length": 17.0, "arm_span": 165.0, "arm_length": 65.0,
+        "leg_length": 80.0, "sitting_height": 80.0, "chest_girth": 80.0,
+        "biceps_girth": 25.0, "flexed_biceps_girth": 27.0,
+        "forearm_girth": 22.0, "thigh_girth": 45.0, "calf_girth": 32.0,
+        "waist_girth": 70.0, "hip_girth": 85.0,
+        "biacromial_breadth": 35.0, "biiliac_breadth": 28.0,
+        "elbow_breadth": 6.0, "wrist_breadth": 5.0,
+        "knee_breadth": 8.0, "ankle_breadth": 6.0,
+        "sit_and_reach": 20.0, "trunk_extension_height": 35.0,
+        "shoulder_extension_height": 40.0, "shoulder_mobility": 0.0,
+        "flamingo_balance_test": 10.0, "body_density": 1.05,
+        "body_fat_percentage": 15.0, "fat_mass": 8.0,
+        "fat_free_mass": 45.0, "handgrip_strength": 30.0,
         "ankle_dorsiflexion_rom": 30.0,
-        "ankle_plantarflexion_rom": 45.0,
-        "foot_length": 24.0,
+        "ankle_plantarflexion_rom": 45.0, "foot_length": 24.0,
     }
-
-    return default_values.get(feature, 0.0)
-
-
-def setup_pdf_font():
-    font_candidates = [
-        r"C:\Windows\Fonts\arial.ttf",
-        r"C:\Windows\Fonts\calibri.ttf",
-        r"C:\Windows\Fonts\tahoma.ttf",
-    ]
-
-    for font_path in font_candidates:
-        if Path(font_path).exists():
-            pdfmetrics.registerFont(TTFont("TurkishFont", font_path))
-            return "TurkishFont"
-
-    return "Helvetica"
-
-
-
-
-PDF_FONT = setup_pdf_font()
+    return defaults.get(feature, 0.0)
 
 
 def fix_pdf_text(text):
     replacements = {
-        "ç": "c", "Ç": "C",
-        "ğ": "g", "Ğ": "G",
-        "ı": "i", "İ": "I",
-        "ö": "o", "Ö": "O",
-        "ş": "s", "Ş": "S",
-        "ü": "u", "Ü": "U",
-        "²": "2",
-        "±": "+/-",
+        "ç": "c", "Ç": "C", "ğ": "g", "Ğ": "G",
+        "ı": "i", "İ": "I", "ö": "o", "Ö": "O",
+        "ş": "s", "Ş": "S", "ü": "u", "Ü": "U",
+        "²": "2", "±": "+/-",
     }
-
     text = str(text)
-
     for old, new in replacements.items():
         text = text.replace(old, new)
-
     return text
 
 
-def create_pdf_report(title, lines):
+def create_pdf_report(title, lines, report_id):
     buffer = BytesIO()
     c = canvas.Canvas(buffer)
+
+    qr_text = f"Report ID: {report_id}"
+    qr_img = qrcode.make(qr_text)
+    qr_buffer = BytesIO()
+    qr_img.save(qr_buffer, format="PNG")
+    qr_buffer.seek(0)
+
+    c.drawImage(ImageReader(qr_buffer), 470, 720, width=80, height=80)
 
     c.setFont("Helvetica", 14)
     c.drawString(40, 800, fix_pdf_text(title))
 
     c.setFont("Helvetica", 10)
+    c.drawString(40, 782, fix_pdf_text(f"Rapor No / Report ID: {report_id}"))
 
-    y = 770
-
+    y = 750
     for line in lines:
         c.drawString(40, y, fix_pdf_text(line))
         y -= 18
@@ -217,7 +167,6 @@ def create_pdf_report(title, lines):
 
     c.save()
     buffer.seek(0)
-
     return buffer
 
 
@@ -228,8 +177,7 @@ def performance_comment_tr(percentile):
         return "★★★★☆", "İyi performans düzeyi"
     elif percentile >= 40:
         return "★★★☆☆", "Orta performans düzeyi"
-    else:
-        return "★★☆☆☆", "Geliştirilmesi gereken performans düzeyi"
+    return "★★☆☆☆", "Geliştirilmesi gereken performans düzeyi"
 
 
 def performance_comment_en(percentile):
@@ -239,66 +187,51 @@ def performance_comment_en(percentile):
         return "★★★★☆", "Good performance level"
     elif percentile >= 40:
         return "★★★☆☆", "Moderate performance level"
-    else:
-        return "★★☆☆☆", "Performance needs improvement"
+    return "★★☆☆☆", "Performance needs improvement"
 
 
 df, metadata = load_system()
 
-language = st.selectbox(
-    "Dil / Language",
-    ["🇹🇷 Türkçe", "🇺🇸 English"]
-)
-
+language = st.selectbox("Dil / Language", ["🇹🇷 Türkçe", "🇺🇸 English"])
 is_tr = language.startswith("🇹🇷")
 
 if is_tr:
     st.title("🇹🇷 Yüzme Performansı Tahmin Sistemi")
 
-    style_display = st.selectbox(
-        "Stil Seçiniz",
-        list(STYLE_TR.values())
-    )
-
+    style_display = st.selectbox("Stil Seçiniz", list(STYLE_TR.values()))
     style = {v: k for k, v in STYLE_TR.items()}[style_display]
 
     st.header(f"🏊 {style_display} Tahmin Modeli")
 
-    sex_display = st.selectbox(
-        "Cinsiyet",
-        ["Kadın", "Erkek"]
-    )
-
+    sex_display = st.selectbox("Cinsiyet", ["Kadın", "Erkek"])
     sex = "female" if sex_display == "Kadın" else "male"
 
-    age_group = st.selectbox(
-        "Yaş Grubu",
-        ["12_13", "14_15", "16_17"]
-    )
+    age_group = st.selectbox("Yaş Grubu", ["12_13", "14_15", "16_17"])
+
+    st.markdown("---")
+    st.subheader("👤 Sporcu Bilgileri")
+    athlete_name = st.text_input("Ad Soyad", value="")
+    club_name = st.text_input("Kulüp", value="")
+    coach_name = st.text_input("Antrenör", value="")
 
 else:
     st.title("🇺🇸 Swimming Performance Prediction System")
 
-    style_display = st.selectbox(
-        "Select Stroke",
-        list(STYLE_EN.values())
-    )
-
+    style_display = st.selectbox("Select Stroke", list(STYLE_EN.values()))
     style = {v: k for k, v in STYLE_EN.items()}[style_display]
 
     st.header(f"🏊 {style_display} Prediction Model")
 
-    sex_display = st.selectbox(
-        "Sex",
-        ["Female", "Male"]
-    )
-
+    sex_display = st.selectbox("Sex", ["Female", "Male"])
     sex = "female" if sex_display == "Female" else "male"
 
-    age_group = st.selectbox(
-        "Age Group",
-        ["12_13", "14_15", "16_17"]
-    )
+    age_group = st.selectbox("Age Group", ["12_13", "14_15", "16_17"])
+
+    st.markdown("---")
+    st.subheader("👤 Athlete Information")
+    athlete_name = st.text_input("Athlete Name", value="")
+    club_name = st.text_input("Club", value="")
+    coach_name = st.text_input("Coach", value="")
 
 
 model_key = f"{style}_{age_group}_{sex}"
@@ -307,7 +240,6 @@ if is_tr:
     st.caption(f"Seçilen model anahtarı: {model_key}")
 else:
     st.caption(f"Selected model key: {model_key}")
-
 
 if model_key not in metadata:
     st.error("Bu seçim için kayıtlı model bulunamadı.")
@@ -318,48 +250,31 @@ model = load_prediction_model(model_info["model_file"])
 features = model_info["features_en"]
 
 st.markdown("---")
-
-if is_tr:
-    st.subheader("📌 Modele Girilecek Ölçümler")
-else:
-    st.subheader("📌 Required Measurements")
+st.subheader("📌 Modele Girilecek Ölçümler" if is_tr else "📌 Required Measurements")
 
 inputs = {}
 
 for feature in features:
-    if is_tr:
-        label = FEATURE_LABELS_TR.get(feature, feature)
-    else:
-        label = FEATURE_LABELS_EN.get(feature, feature)
-
+    label = FEATURE_LABELS_TR.get(feature, feature) if is_tr else FEATURE_LABELS_EN.get(feature, feature)
     default_value = get_default_value(feature)
 
     if feature in ["age", "sit_ups_1min"]:
-        inputs[feature] = st.number_input(
-            label,
-            min_value=0,
-            max_value=300,
-            value=int(default_value)
-        )
+        inputs[feature] = st.number_input(label, min_value=0, max_value=300, value=int(default_value))
     else:
-        inputs[feature] = st.number_input(
-            label,
-            min_value=0.0,
-            max_value=500.0,
-            value=float(default_value)
-        )
+        inputs[feature] = st.number_input(label, min_value=0.0, max_value=500.0, value=float(default_value))
 
 if is_tr:
     st.info(f"Modelde kullanılan değişken sayısı: {len(features)}")
 else:
     st.info(f"Number of variables used in the model: {len(features)}")
 
-
 st.markdown("---")
 
 button_text = "Tahmin Et" if is_tr else "Predict"
 
 if st.button(button_text):
+
+    report_id = f"SWIM-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
     input_df = pd.DataFrame([inputs])
     prediction = model.predict(input_df)[0]
@@ -389,15 +304,9 @@ if st.button(button_text):
         st.write(f"**{stars} {comment}**")
 
         if difference < 0:
-            st.write(
-                f"Bu sporcu kendi yaş grubu ve cinsiyet ortalamasından "
-                f"**{abs(difference):.2f} sn daha hızlı** görünmektedir."
-            )
+            st.write(f"Bu sporcu kendi yaş grubu ve cinsiyet ortalamasından **{abs(difference):.2f} sn daha hızlı** görünmektedir.")
         else:
-            st.write(
-                f"Bu sporcu kendi yaş grubu ve cinsiyet ortalamasından "
-                f"**{difference:.2f} sn daha yavaş** görünmektedir."
-            )
+            st.write(f"Bu sporcu kendi yaş grubu ve cinsiyet ortalamasından **{difference:.2f} sn daha yavaş** görünmektedir.")
 
         st.subheader("🧠 Model Doğruluk Bilgileri")
         st.write(f"Model: **{model_info['model']}**")
@@ -418,12 +327,18 @@ if st.button(button_text):
             st.write(f"{i}. {FEATURE_LABELS_TR.get(f, f)}")
 
         report_lines = [
+            "SPORCU BILGILERI",
+            f"Rapor No: {report_id}",
+            f"Ad Soyad: {athlete_name}",
+            f"Kulup: {club_name}",
+            f"Antrenor: {coach_name}",
             f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
-            f"Model Başlığı: {style_display} Tahmin Modeli",
-            f"Cinsiyet: {sex_display}",
-            f"Yaş Grubu: {age_group}",
             "",
-            "Girilen Ölçümler:"
+            f"Model Basligi: {style_display} Tahmin Modeli",
+            f"Cinsiyet: {sex_display}",
+            f"Yas Grubu: {age_group}",
+            "",
+            "Girilen Olcumler:"
         ]
 
         for f, v in inputs.items():
@@ -432,35 +347,32 @@ if st.button(button_text):
         report_lines += [
             "",
             f"Tahmini Derece: {prediction:.2f} sn",
-            f"Grup Ortalaması: {group_mean:.2f} sn",
+            f"Grup Ortalamasi: {group_mean:.2f} sn",
             f"Fark: {difference:.2f} sn",
-            f"Performans Yüzdeliği: %{percentile:.1f}",
+            f"Performans Yuzdeligi: %{percentile:.1f}",
             f"Performans Yorumu: {comment}",
             "",
-            "Model Doğruluk Bilgileri:",
+            "Model Dogruluk Bilgileri:",
             f"Model: {model_info['model']}",
             f"Toplam Veri: {model_info['n_total']}",
-            f"Eğitim Verisi: {model_info['n_train']}",
-            f"Bağımsız Test Verisi: {model_info['n_test']}",
+            f"Egitim Verisi: {model_info['n_train']}",
+            f"Bagimsiz Test Verisi: {model_info['n_test']}",
             f"MAE: {model_info['mae']} sn",
             f"RMSE: {model_info['rmse']} sn",
             f"MAPE: %{model_info['mape']}",
-            f"R²: {model_info['r2']}",
+            f"R2: {model_info['r2']}",
             f"Pearson r: {model_info['pearson_r']}",
-            f"5-Kat CV R²: {model_info['cv_r2']} ± {model_info['cv_std']}",
+            f"5-Kat CV R2: {model_info['cv_r2']} +/- {model_info['cv_std']}",
             f"Minimum Hata: {model_info['min_error']} sn",
             f"Maksimum Hata: {model_info['max_error']} sn",
         ]
 
-        pdf = create_pdf_report(
-            f"{style_display} Tahmin Raporu",
-            report_lines
-        )
+        pdf = create_pdf_report(f"{style_display} Tahmin Raporu", report_lines, report_id)
 
         st.download_button(
             label="📄 PDF Raporu İndir",
             data=pdf,
-            file_name=f"{style}_{age_group}_{sex}_tahmin_raporu.pdf",
+            file_name=f"{style}_{age_group}_{sex}_{report_id}_tahmin_raporu.pdf",
             mime="application/pdf"
         )
 
@@ -478,15 +390,9 @@ if st.button(button_text):
         st.write(f"**{stars} {comment}**")
 
         if difference < 0:
-            st.write(
-                f"This swimmer appears **{abs(difference):.2f} s faster** "
-                f"than the age-sex group mean."
-            )
+            st.write(f"This swimmer appears **{abs(difference):.2f} s faster** than the age-sex group mean.")
         else:
-            st.write(
-                f"This swimmer appears **{difference:.2f} s slower** "
-                f"than the age-sex group mean."
-            )
+            st.write(f"This swimmer appears **{difference:.2f} s slower** than the age-sex group mean.")
 
         st.subheader("🧠 Model Accuracy Information")
         st.write(f"Model: **{model_info['model']}**")
@@ -507,7 +413,13 @@ if st.button(button_text):
             st.write(f"{i}. {FEATURE_LABELS_EN.get(f, f)}")
 
         report_lines = [
+            "ATHLETE INFORMATION",
+            f"Report ID: {report_id}",
+            f"Athlete Name: {athlete_name}",
+            f"Club: {club_name}",
+            f"Coach: {coach_name}",
             f"Report Date: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+            "",
             f"Model Title: {style_display} Prediction Model",
             f"Sex: {sex_display}",
             f"Age Group: {age_group}",
@@ -534,21 +446,18 @@ if st.button(button_text):
             f"MAE: {model_info['mae']} s",
             f"RMSE: {model_info['rmse']} s",
             f"MAPE: %{model_info['mape']}",
-            f"R²: {model_info['r2']}",
+            f"R2: {model_info['r2']}",
             f"Pearson r: {model_info['pearson_r']}",
-            f"5-Fold CV R²: {model_info['cv_r2']} ± {model_info['cv_std']}",
+            f"5-Fold CV R2: {model_info['cv_r2']} +/- {model_info['cv_std']}",
             f"Minimum Error: {model_info['min_error']} s",
             f"Maximum Error: {model_info['max_error']} s",
         ]
 
-        pdf = create_pdf_report(
-            f"{style_display} Prediction Report",
-            report_lines
-        )
+        pdf = create_pdf_report(f"{style_display} Prediction Report", report_lines, report_id)
 
         st.download_button(
             label="📄 Download PDF Report",
             data=pdf,
-            file_name=f"{style}_{age_group}_{sex}_prediction_report.pdf",
+            file_name=f"{style}_{age_group}_{sex}_{report_id}_prediction_report.pdf",
             mime="application/pdf"
         )

@@ -4,5 +4,4 @@ openpyxl
 scikit-learn
 joblib
 reportlab
-xgboost
 qrcode
