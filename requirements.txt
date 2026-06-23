@@ -4,4 +4,3 @@ openpyxl
 scikit-learn
 joblib
 reportlab
-qrcode
