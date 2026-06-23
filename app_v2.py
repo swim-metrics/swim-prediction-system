@@ -156,13 +156,20 @@ def get_default_value(feature):
 
 
 def setup_pdf_font():
-    font_path = Path("C:/Windows/Fonts/arial.ttf")
+    font_candidates = [
+        r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\calibri.ttf",
+        r"C:\Windows\Fonts\tahoma.ttf",
+    ]
 
-    if font_path.exists():
-        pdfmetrics.registerFont(TTFont("Arial", str(font_path)))
-        return "Arial"
+    for font_path in font_candidates:
+        if Path(font_path).exists():
+            pdfmetrics.registerFont(TTFont("TurkishFont", font_path))
+            return "TurkishFont"
 
     return "Helvetica"
+
+
 
 
 PDF_FONT = setup_pdf_font()
