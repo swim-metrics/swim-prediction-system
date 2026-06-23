@@ -141,7 +141,12 @@ def create_pdf_report(title, lines, report_id):
     buffer = BytesIO()
     c = canvas.Canvas(buffer)
 
-    qr_text = f"Report ID: {report_id}"
+    qr_text = "\n".join([
+        "Yuzme Performansi Tahmin Raporu",
+        f"Rapor No: {report_id}",
+        f"Baslik: {fix_pdf_text(title)}",
+    ])
+
     qr_img = qrcode.make(qr_text)
     qr_buffer = BytesIO()
     qr_img.save(qr_buffer, format="PNG")
