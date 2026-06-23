@@ -14,6 +14,7 @@ from reportlab.pdfbase import pdfmetrics
 DATA_FILE = "swim_data.xlsx"
 METADATA_FILE = "model_metadata.json"
 
+
 STYLE_TR = {
     "freestyle": "50 m Serbest Stil",
     "backstroke": "50 m Sırtüstü Stil",
@@ -92,10 +93,131 @@ def load_system():
     return df, metadata
 
 
+@st.cache_resource
+def load_prediction_model(model_file):
+    model_path = Path(model_file)
+
+    if not model_path.exists():
+        model_path = Path("models") / model_path.name
+
+    if not model_path.exists():
+        st.error(f"Model dosyası bulunamadı: {model_path}")
+        st.stop()
+
+    return joblib.load(model_path)
+
+
+def get_default_value(feature):
+    default_values = {
+        "age": 15,
+        "body_height": 160.0,
+        "body_mass": 55.0,
+        "training_age": 4.0,
+        "vertical_jump": 35.0,
+        "standing_long_jump": 180.0,
+        "flexed_arm_hang": 30.0,
+        "sit_ups_1min": 35,
+        "illinois_agility_test": 18.0,
+        "sprint_30m": 5.0,
+        "hand_length": 17.0,
+        "arm_span": 165.0,
+        "arm_length": 65.0,
+        "leg_length": 80.0,
+        "sitting_height": 80.0,
+        "chest_girth": 80.0,
+        "biceps_girth": 25.0,
+        "flexed_biceps_girth": 27.0,
+        "forearm_girth": 22.0,
+        "thigh_girth": 45.0,
+        "calf_girth": 32.0,
+        "waist_girth": 70.0,
+        "hip_girth": 85.0,
+        "biacromial_breadth": 35.0,
+        "biiliac_breadth": 28.0,
+        "elbow_breadth": 6.0,
+        "wrist_breadth": 5.0,
+        "knee_breadth": 8.0,
+        "ankle_breadth": 6.0,
+        "sit_and_reach": 20.0,
+        "trunk_extension_height": 35.0,
+        "shoulder_extension_height": 40.0,
+        "shoulder_mobility": 0.0,
+        "flamingo_balance_test": 10.0,
+        "body_density": 1.05,
+        "body_fat_percentage": 15.0,
+        "fat_mass": 8.0,
+        "fat_free_mass": 45.0,
+        "handgrip_strength": 30.0,
+        "ankle_dorsiflexion_rom": 30.0,
+        "ankle_plantarflexion_rom": 45.0,
+        "foot_length": 24.0,
+    }
+
+    return default_values.get(feature, 0.0)
+
+
+def setup_pdf_font():
+    font_path = Path("C:/Windows/Fonts/arial.ttf")
+
+    if font_path.exists():
+        pdfmetrics.registerFont(TTFont("Arial", str(font_path)))
+        return "Arial"
+
+    return "Helvetica"
+
+
+PDF_FONT = setup_pdf_font()
+
+
+def create_pdf_report(title, lines):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer)
+
+    c.setFont(PDF_FONT, 14)
+    c.drawString(40, 800, title)
+
+    c.setFont(PDF_FONT, 10)
+
+    y = 770
+
+    for line in lines:
+        c.drawString(40, y, str(line))
+        y -= 18
+
+        if y < 50:
+            c.showPage()
+            c.setFont(PDF_FONT, 10)
+            y = 800
+
+    c.save()
+    buffer.seek(0)
+
+    return buffer
+
+
+def performance_comment_tr(percentile):
+    if percentile >= 85:
+        return "★★★★★", "Çok yüksek performans düzeyi"
+    elif percentile >= 65:
+        return "★★★★☆", "İyi performans düzeyi"
+    elif percentile >= 40:
+        return "★★★☆☆", "Orta performans düzeyi"
+    else:
+        return "★★☆☆☆", "Geliştirilmesi gereken performans düzeyi"
+
+
+def performance_comment_en(percentile):
+    if percentile >= 85:
+        return "★★★★★", "Very high performance level"
+    elif percentile >= 65:
+        return "★★★★☆", "Good performance level"
+    elif percentile >= 40:
+        return "★★★☆☆", "Moderate performance level"
+    else:
+        return "★★☆☆☆", "Performance needs improvement"
+
+
 df, metadata = load_system()
-# ==========================
-# BÖLÜM 2: DİL, STİL, CİNSİYET VE YAŞ GRUBU SEÇİMİ
-# ==========================
 
 language = st.selectbox(
     "Dil / Language",
@@ -155,19 +277,18 @@ else:
 
 model_key = f"{style}_{age_group}_{sex}"
 
-st.write("Seçilen model anahtarı:", model_key)
-# ==========================
-# BÖLÜM 3: MODELİ ÇAĞIRMA VE ÖLÇÜMLERİ OLUŞTURMA
-# ==========================
+if is_tr:
+    st.caption(f"Seçilen model anahtarı: {model_key}")
+else:
+    st.caption(f"Selected model key: {model_key}")
+
 
 if model_key not in metadata:
     st.error("Bu seçim için kayıtlı model bulunamadı.")
     st.stop()
 
 model_info = metadata[model_key]
-
-model = joblib.load(model_info["model_file"])
-
+model = load_prediction_model(model_info["model_file"])
 features = model_info["features_en"]
 
 st.markdown("---")
@@ -176,56 +297,6 @@ if is_tr:
     st.subheader("📌 Modele Girilecek Ölçümler")
 else:
     st.subheader("📌 Required Measurements")
-
-
-def get_default_value(feature):
-    default_values = {
-        "age": 15,
-        "body_height": 160.0,
-        "body_mass": 55.0,
-        "training_age": 4.0,
-        "vertical_jump": 35.0,
-        "standing_long_jump": 180.0,
-        "flexed_arm_hang": 30.0,
-        "sit_ups_1min": 35,
-        "illinois_agility_test": 18.0,
-        "sprint_30m": 5.0,
-        "hand_length": 17.0,
-        "arm_span": 165.0,
-        "arm_length": 65.0,
-        "leg_length": 80.0,
-        "sitting_height": 80.0,
-        "chest_girth": 80.0,
-        "biceps_girth": 25.0,
-        "flexed_biceps_girth": 27.0,
-        "forearm_girth": 22.0,
-        "thigh_girth": 45.0,
-        "calf_girth": 32.0,
-        "waist_girth": 70.0,
-        "hip_girth": 85.0,
-        "biacromial_breadth": 35.0,
-        "biiliac_breadth": 28.0,
-        "elbow_breadth": 6.0,
-        "wrist_breadth": 5.0,
-        "knee_breadth": 8.0,
-        "ankle_breadth": 6.0,
-        "sit_and_reach": 20.0,
-        "trunk_extension_height": 35.0,
-        "shoulder_extension_height": 40.0,
-        "shoulder_mobility": 0.0,
-        "flamingo_balance_test": 10.0,
-        "body_density": 1.05,
-        "body_fat_percentage": 15.0,
-        "fat_mass": 8.0,
-        "fat_free_mass": 45.0,
-        "handgrip_strength": 30.0,
-        "ankle_dorsiflexion_rom": 30.0,
-        "ankle_plantarflexion_rom": 45.0,
-        "foot_length": 24.0,
-    }
-
-    return default_values.get(feature, 0.0)
-
 
 inputs = {}
 
@@ -252,72 +323,10 @@ for feature in features:
             value=float(default_value)
         )
 
-st.info(f"Modelde kullanılan değişken sayısı: {len(features)}")
-# ==========================
-# BÖLÜM 5: PDF RAPOR FONKSİYONU
-# ==========================
-
-def setup_pdf_font():
-    font_path = Path("C:/Windows/Fonts/arial.ttf")
-
-    if font_path.exists():
-        pdfmetrics.registerFont(TTFont("Arial", str(font_path)))
-        return "Arial"
-
-    return "Helvetica"
-
-
-PDF_FONT = setup_pdf_font()
-
-
-def create_pdf_report(title, lines):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer)
-
-    c.setFont(PDF_FONT, 14)
-    c.drawString(40, 800, title)
-
-    c.setFont(PDF_FONT, 10)
-
-    y = 770
-
-    for line in lines:
-        c.drawString(40, y, str(line))
-        y -= 18
-
-        if y < 50:
-            c.showPage()
-            c.setFont(PDF_FONT, 10)
-            y = 800
-
-    c.save()
-    buffer.seek(0)
-
-    return buffer
-# ==========================
-# BÖLÜM 4: TAHMİN, SONUÇLAR VE PDF İÇERİĞİ
-# ==========================
-
-def performance_comment_tr(percentile):
-    if percentile >= 85:
-        return "★★★★★", "Çok yüksek performans düzeyi"
-    elif percentile >= 65:
-        return "★★★★☆", "İyi performans düzeyi"
-    elif percentile >= 40:
-        return "★★★☆☆", "Orta performans düzeyi"
-    else:
-        return "★★☆☆☆", "Geliştirilmesi gereken performans düzeyi"
-
-
-def performance_comment_en(percentile):
-    if percentile >= 85:
-        return "★★★★★", "Very high performance level"
-    elif percentile >= 65:
-        return "★★★★☆", "Good performance level"
-    elif percentile >= 40:
-        return "★★★☆☆", "Moderate performance level"
-    else:
-        return "★★☆☆☆", "Performance needs improvement"
+if is_tr:
+    st.info(f"Modelde kullanılan değişken sayısı: {len(features)}")
+else:
+    st.info(f"Number of variables used in the model: {len(features)}")
 
 
 st.markdown("---")
