@@ -4,3 +4,11 @@ openpyxl
 scikit-learn
 joblib
 reportlab
+streamlit
+pandas
+numpy
+scikit-learn
+joblib
+openpyxl
+reportlab
+matplotlib
