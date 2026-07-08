@@ -1,25 +1,14 @@
-# -*- coding: utf-8 -*-
-"""
-SwimML Pro v1.0
-50 m Yüzme Performans Tahmin ve Antrenör Karar Destek Sistemi
-50 m Prediction Coach Decision Support System
-
-Geliştirici / Developer:
-Öğr. Gör. Tuğrul Özkadı ve Ekibi
-Hitit Üniversitesi Spor Bilimleri Fakültesi
-
-Gerekli dosyalar:
-- swim_data.xlsx
-- model_metadata.json
-- model_metadata.json içinde tanımlı .joblib model dosyaları
-
-Çalıştırma:
-streamlit run swimml_pro_v1_nirvana.py
-"""
+# ============================================================
+# SwimML Pro v1.0
+# 50 m Yüzme Performans Tahmin ve Antrenör Karar Destek Sistemi
+# 50 m Prediction Coach Decision Support System
+#
+# Geliştirici: Öğr. Gör. Tuğrul Özkadı ve Ekibi
+# Hitit Üniversitesi Spor Bilimleri Fakültesi
+# ============================================================
 
 import json
 import uuid
-import math
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
@@ -28,39 +17,438 @@ import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
-from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 
 # ============================================================
-# CONFIG
+# 1. TEMEL AYARLAR
 # ============================================================
 
 APP_VERSION = "v1.0"
+APP_NAME = "SwimML Pro"
 DATA_FILE = "swim_data.xlsx"
 METADATA_FILE = "model_metadata.json"
+
+PAGE_TITLE_TR = "50 m Yüzme Performans Tahmin ve Antrenör Karar Destek Sistemi"
+PAGE_TITLE_EN = "50 m Prediction Coach Decision Support System"
 
 DEVELOPER_TR = "Öğr. Gör. Tuğrul Özkadı ve Ekibi"
 DEVELOPER_EN = "Lect. Tuğrul Özkadı and Team"
 UNIVERSITY_TR = "Hitit Üniversitesi Spor Bilimleri Fakültesi"
 UNIVERSITY_EN = "Hitit University Faculty of Sport Sciences"
 
-THEME = {
-    "navy": "#071A2C",
-    "navy2": "#0B253F",
-    "turquoise": "#00B8C8",
-    "turquoise2": "#22D3EE",
-    "ice": "#EAFBFF",
-    "white": "#FFFFFF",
-    "gray": "#64748B",
-    "dark_gray": "#334155",
-    "green": "#10B981",
-    "orange": "#F59E0B",
-    "red": "#EF4444",
-}
+PRIMARY_DARK = "#071A2C"
+SECOND_DARK = "#0B2338"
+TURQUOISE = "#00B8C8"
+LIGHT_BLUE = "#EAFBFF"
+CARD_WHITE = "#FFFFFF"
+TEXT_DARK = "#071A2C"
+TEXT_MUTED = "#64748B"
+SUCCESS = "#10B981"
+WARNING = "#F59E0B"
+DANGER = "#EF4444"
+
+st.set_page_config(
+    page_title=f"{APP_NAME} {APP_VERSION}",
+    page_icon="🏊‍♂️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+
+# ============================================================
+# 2. CSS TASARIM - MOBİL UYUMLU VE OKUNABİLİR
+# ============================================================
+
+def inject_css():
+    st.markdown(
+        f"""
+        <style>
+        /* Genel zemin */
+        .stApp {{
+            background: linear-gradient(180deg, #F8FEFF 0%, #EAFBFF 45%, #FFFFFF 100%);
+            color: {TEXT_DARK};
+        }}
+
+        /* Ana container */
+        .block-container {{
+            padding-top: 1.2rem;
+            padding-bottom: 2.5rem;
+            max-width: 1180px;
+        }}
+
+        /* Üst menü/sidebar etkisini azalt */
+        [data-testid="stSidebar"] {{
+            display: none;
+        }}
+
+        /* Başlık kartı */
+        .hero-card {{
+            background: linear-gradient(135deg, {PRIMARY_DARK} 0%, {SECOND_DARK} 55%, #003F54 100%);
+            color: white;
+            border-radius: 28px;
+            padding: 34px 36px;
+            box-shadow: 0 22px 55px rgba(7, 26, 44, 0.25);
+            margin-bottom: 28px;
+            border: 1px solid rgba(255,255,255,0.10);
+        }}
+        .hero-title {{
+            font-size: clamp(34px, 6vw, 58px);
+            font-weight: 900;
+            letter-spacing: -1.5px;
+            margin: 0 0 8px 0;
+            line-height: 1.05;
+        }}
+        .hero-subtitle {{
+            font-size: clamp(18px, 3vw, 28px);
+            font-weight: 700;
+            color: #DFFBFF;
+            margin: 0 0 16px 0;
+            line-height: 1.22;
+        }}
+        .hero-desc {{
+            font-size: 17px;
+            color: #BDEFF5;
+            line-height: 1.55;
+            max-width: 920px;
+            margin-bottom: 18px;
+        }}
+        .hero-footer {{
+            font-size: 14px;
+            color: #DFFBFF;
+            background: rgba(255,255,255,0.08);
+            border-radius: 999px;
+            display: inline-block;
+            padding: 9px 16px;
+        }}
+
+        /* Bölüm başlığı */
+        .section-card {{
+            background: rgba(255,255,255,0.92);
+            border: 1px solid rgba(0,184,200,0.22);
+            border-radius: 24px;
+            padding: 24px 28px;
+            box-shadow: 0 14px 35px rgba(0,184,200,0.09);
+            margin: 22px 0 14px 0;
+        }}
+        .section-title {{
+            font-size: clamp(25px, 4vw, 40px);
+            color: {TEXT_DARK};
+            font-weight: 900;
+            margin: 0;
+            line-height: 1.1;
+        }}
+
+        .soft-note {{
+            color: {TEXT_MUTED};
+            font-size: 16px;
+            font-weight: 600;
+            margin: 6px 0 14px 0;
+        }}
+
+        .selected-group {{
+            background: #DFF7FB;
+            border-left: 6px solid {TURQUOISE};
+            color: {TEXT_DARK};
+            border-radius: 16px;
+            padding: 14px 18px;
+            font-weight: 800;
+            margin: 12px 0 20px 0;
+        }}
+
+        /* Kritik: mobilde label'lar görünür olsun */
+        label, .stNumberInput label, .stTextInput label, .stSelectbox label, .stRadio label {{
+            color: {TEXT_DARK} !important;
+            font-weight: 800 !important;
+            font-size: 16px !important;
+            opacity: 1 !important;
+        }}
+
+        /* Input alanları */
+        .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {{
+            background-color: #F8FAFC !important;
+            color: {TEXT_DARK} !important;
+            border: 1px solid rgba(7,26,44,0.13) !important;
+            border-radius: 14px !important;
+            min-height: 48px !important;
+            font-weight: 700 !important;
+            font-size: 16px !important;
+        }}
+
+        .stTextInput input:focus, .stNumberInput input:focus {{
+            border: 2px solid {TURQUOISE} !important;
+            box-shadow: 0 0 0 3px rgba(0,184,200,0.14) !important;
+        }}
+
+        /* Expander */
+        [data-testid="stExpander"] {{
+            border: 1px solid rgba(0,184,200,0.25) !important;
+            border-radius: 18px !important;
+            background: rgba(255,255,255,0.95) !important;
+            box-shadow: 0 12px 28px rgba(0,184,200,0.07);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }}
+
+        [data-testid="stExpander"] summary {{
+            background: #FFFFFF !important;
+            color: {TEXT_DARK} !important;
+            font-size: 19px !important;
+            font-weight: 900 !important;
+            padding: 16px 18px !important;
+            border-radius: 18px !important;
+        }}
+
+        [data-testid="stExpander"] summary p {{
+            color: {TEXT_DARK} !important;
+            font-size: 19px !important;
+            font-weight: 900 !important;
+        }}
+
+        [data-testid="stExpander"] label {{
+            color: {TEXT_DARK} !important;
+            font-weight: 900 !important;
+            opacity: 1 !important;
+        }}
+
+        /* Buton */
+        .stButton > button {{
+            background: linear-gradient(135deg, {TURQUOISE} 0%, #005B75 100%) !important;
+            color: #FFFFFF !important;
+            border: none !important;
+            border-radius: 999px !important;
+            padding: 16px 30px !important;
+            font-size: 19px !important;
+            font-weight: 900 !important;
+            box-shadow: 0 16px 30px rgba(0,184,200,0.24) !important;
+            min-height: 58px !important;
+        }}
+        .stButton > button:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 20px 36px rgba(0,184,200,0.30) !important;
+        }}
+
+        /* Metrik kartları */
+        .metric-card {{
+            background: #FFFFFF;
+            border: 1px solid rgba(0,184,200,0.22);
+            border-radius: 22px;
+            padding: 22px 20px;
+            min-height: 138px;
+            box-shadow: 0 16px 38px rgba(7,26,44,0.08);
+            margin-bottom: 14px;
+        }}
+        .metric-label {{
+            color: {TEXT_MUTED};
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 7px;
+        }}
+        .metric-value {{
+            color: {TEXT_DARK};
+            font-size: clamp(26px, 4vw, 42px);
+            font-weight: 950;
+            line-height: 1.05;
+        }}
+        .metric-small {{
+            color: {TEXT_MUTED};
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 9px;
+        }}
+
+        /* Dairesel gösterge */
+        .gauge-wrap {{
+            background: #FFFFFF;
+            border: 1px solid rgba(0,184,200,0.22);
+            border-radius: 24px;
+            padding: 24px 18px;
+            text-align: center;
+            box-shadow: 0 16px 38px rgba(7,26,44,0.08);
+            margin-bottom: 14px;
+        }}
+        .gauge {{
+            --p: 70;
+            --c: {TURQUOISE};
+            width: 152px;
+            height: 152px;
+            border-radius: 50%;
+            margin: 0 auto 14px auto;
+            background: conic-gradient(var(--c) calc(var(--p) * 1%), #E5E7EB 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }}
+        .gauge::before {{
+            content: "";
+            position: absolute;
+            width: 112px;
+            height: 112px;
+            border-radius: 50%;
+            background: #FFFFFF;
+        }}
+        .gauge span {{
+            position: relative;
+            z-index: 2;
+            color: {TEXT_DARK};
+            font-size: 28px;
+            font-weight: 950;
+        }}
+        .gauge-title {{
+            color: {TEXT_DARK};
+            font-size: 18px;
+            font-weight: 950;
+            margin-top: 6px;
+        }}
+        .gauge-desc {{
+            color: {TEXT_MUTED};
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 4px;
+        }}
+
+        /* Yorum kartı */
+        .coach-card {{
+            background: linear-gradient(135deg, #FFFFFF 0%, #F0FDFF 100%);
+            border: 1px solid rgba(0,184,200,0.24);
+            border-radius: 24px;
+            padding: 24px 26px;
+            box-shadow: 0 16px 38px rgba(0,184,200,0.09);
+            margin: 18px 0;
+        }}
+        .coach-title {{
+            color: {TEXT_DARK};
+            font-size: 24px;
+            font-weight: 950;
+            margin-bottom: 10px;
+        }}
+        .coach-text {{
+            color: {TEXT_DARK};
+            font-size: 16px;
+            line-height: 1.65;
+            font-weight: 650;
+        }}
+
+        /* Liste kartları */
+        .list-card {{
+            background: #FFFFFF;
+            border-radius: 20px;
+            border: 1px solid rgba(7,26,44,0.08);
+            padding: 20px 22px;
+            min-height: 170px;
+            box-shadow: 0 10px 28px rgba(7,26,44,0.06);
+        }}
+        .list-title {{
+            color: {TEXT_DARK};
+            font-size: 20px;
+            font-weight: 950;
+            margin-bottom: 10px;
+        }}
+        .list-item {{
+            color: {TEXT_DARK};
+            font-size: 15px;
+            font-weight: 700;
+            margin: 8px 0;
+        }}
+
+        /* Footer */
+        .footer-card {{
+            background: linear-gradient(135deg, {PRIMARY_DARK} 0%, #111827 100%);
+            color: #EAFBFF;
+            border-radius: 26px;
+            padding: 28px 32px;
+            margin-top: 34px;
+            box-shadow: 0 18px 44px rgba(7,26,44,0.20);
+        }}
+        .footer-title {{
+            font-size: 26px;
+            font-weight: 950;
+            margin-bottom: 10px;
+            color: #FFFFFF;
+        }}
+        .footer-text {{
+            font-size: 14px;
+            line-height: 1.65;
+            color: #DFFBFF;
+        }}
+
+        /* Uyarı */
+        .warning-box {{
+            background: #FFF7ED;
+            border-left: 6px solid {WARNING};
+            color: {TEXT_DARK};
+            border-radius: 16px;
+            padding: 16px 18px;
+            font-weight: 700;
+            line-height: 1.55;
+            margin: 14px 0;
+        }}
+
+        /* MOBİL ÖZEL */
+        @media (max-width: 768px) {{
+            .block-container {{
+                padding-left: 1rem;
+                padding-right: 1rem;
+                padding-top: 0.8rem;
+            }}
+            .hero-card {{
+                padding: 26px 22px;
+                border-radius: 24px;
+            }}
+            .hero-desc {{
+                font-size: 15px;
+            }}
+            .hero-footer {{
+                border-radius: 18px;
+                line-height: 1.45;
+            }}
+            .section-card {{
+                padding: 22px 20px;
+                border-radius: 22px;
+            }}
+            label, .stNumberInput label, .stTextInput label, .stSelectbox label, .stRadio label {{
+                color: {TEXT_DARK} !important;
+                font-size: 17px !important;
+                font-weight: 950 !important;
+                opacity: 1 !important;
+            }}
+            .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {{
+                background-color: #FFFFFF !important;
+                color: {TEXT_DARK} !important;
+                border: 1.5px solid rgba(7,26,44,0.18) !important;
+                font-size: 17px !important;
+                min-height: 54px !important;
+            }}
+            [data-testid="stExpander"] summary p {{
+                color: {TEXT_DARK} !important;
+                font-size: 18px !important;
+                font-weight: 950 !important;
+            }}
+            .gauge {{
+                width: 138px;
+                height: 138px;
+            }}
+            .gauge::before {{
+                width: 102px;
+                height: 102px;
+            }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+inject_css()
+
+
+# ============================================================
+# 3. METİN VE ETİKET SÖZLÜKLERİ
+# ============================================================
 
 STYLE_TR = {
     "freestyle": "50 m Serbest Stil",
@@ -78,7 +466,6 @@ STYLE_EN = {
 
 SEX_TR = {"female": "Kadın", "male": "Erkek"}
 SEX_EN = {"female": "Female", "male": "Male"}
-AGE_GROUPS = ["12_13", "14_15", "16_17"]
 
 FEATURE_LABELS_TR = {
     "age": "Yaş",
@@ -125,267 +512,122 @@ FEATURE_LABELS_TR = {
     "foot_length": "Ayak Uzunluğu (cm)",
 }
 
-FEATURE_LABELS_EN = {k: k.replace("_", " ").title() for k in FEATURE_LABELS_TR.keys()}
+FEATURE_LABELS_EN = {k: k.replace("_", " ").title() for k in FEATURE_LABELS_TR}
 
-FEATURE_GROUPS = {
-    "anthropometry": [
-        "age", "body_height", "body_mass", "training_age", "hand_length", "foot_length",
-        "arm_span", "arm_length", "leg_length", "sitting_height", "chest_girth",
-        "biceps_girth", "flexed_biceps_girth", "forearm_girth", "thigh_girth", "calf_girth",
-        "waist_girth", "hip_girth", "biacromial_breadth", "biiliac_breadth",
-        "elbow_breadth", "wrist_breadth", "knee_breadth", "ankle_breadth",
-    ],
-    "motor": [
-        "vertical_jump", "standing_long_jump", "flexed_arm_hang", "sit_ups_1min",
-        "illinois_agility_test", "sprint_30m", "handgrip_strength", "flamingo_balance_test",
-    ],
-    "mobility": [
-        "sit_and_reach", "trunk_extension_height", "shoulder_extension_height", "shoulder_mobility",
-        "ankle_dorsiflexion_rom", "ankle_plantarflexion_rom",
-    ],
-    "composition": [
-        "body_density", "body_fat_percentage", "fat_mass", "fat_free_mass",
-    ],
+ANTHROPOMETRY = {
+    "age", "body_height", "body_mass", "training_age", "hand_length", "arm_span", "arm_length",
+    "leg_length", "sitting_height", "chest_girth", "biceps_girth", "flexed_biceps_girth",
+    "forearm_girth", "thigh_girth", "calf_girth", "waist_girth", "hip_girth",
+    "biacromial_breadth", "biiliac_breadth", "elbow_breadth", "wrist_breadth",
+    "knee_breadth", "ankle_breadth", "foot_length"
 }
 
-GROUP_TITLES_TR = {
-    "anthropometry": "▶ Antropometrik Ölçümler",
-    "motor": "▶ Motorik Performans Testleri",
-    "mobility": "▶ Esneklik ve Mobilite",
-    "composition": "▶ Vücut Kompozisyonu",
-    "other": "▶ Diğer Model Değişkenleri",
+MOTOR = {
+    "vertical_jump", "standing_long_jump", "flexed_arm_hang", "sit_ups_1min",
+    "illinois_agility_test", "sprint_30m", "handgrip_strength", "flamingo_balance_test"
 }
 
-GROUP_TITLES_EN = {
-    "anthropometry": "▶ Anthropometric Measurements",
-    "motor": "▶ Motor Performance Tests",
-    "mobility": "▶ Flexibility and Mobility",
-    "composition": "▶ Body Composition",
-    "other": "▶ Other Model Variables",
+MOBILITY = {
+    "sit_and_reach", "trunk_extension_height", "shoulder_extension_height", "shoulder_mobility",
+    "ankle_dorsiflexion_rom", "ankle_plantarflexion_rom"
 }
 
-DEFAULTS = {
-    "age": 15, "body_height": 160.0, "body_mass": 55.0, "training_age": 4.0,
-    "vertical_jump": 35.0, "standing_long_jump": 180.0, "flexed_arm_hang": 30.0,
-    "sit_ups_1min": 35, "illinois_agility_test": 18.0, "sprint_30m": 5.0,
-    "hand_length": 17.0, "arm_span": 165.0, "arm_length": 65.0, "leg_length": 80.0,
-    "sitting_height": 80.0, "chest_girth": 80.0, "biceps_girth": 25.0,
-    "flexed_biceps_girth": 27.0, "forearm_girth": 22.0, "thigh_girth": 45.0,
-    "calf_girth": 32.0, "waist_girth": 70.0, "hip_girth": 85.0,
-    "biacromial_breadth": 35.0, "biiliac_breadth": 28.0, "elbow_breadth": 6.0,
-    "wrist_breadth": 5.0, "knee_breadth": 8.0, "ankle_breadth": 6.0,
-    "sit_and_reach": 20.0, "trunk_extension_height": 35.0,
-    "shoulder_extension_height": 40.0, "shoulder_mobility": 0.0,
-    "flamingo_balance_test": 10.0, "body_density": 1.05, "body_fat_percentage": 15.0,
-    "fat_mass": 8.0, "fat_free_mass": 45.0, "handgrip_strength": 30.0,
-    "ankle_dorsiflexion_rom": 30.0, "ankle_plantarflexion_rom": 45.0,
-    "foot_length": 24.0,
+BODY_COMP = {
+    "body_density", "body_fat_percentage", "fat_mass", "fat_free_mass"
 }
 
 LOWER_IS_BETTER = {
-    "sprint_30m", "illinois_agility_test", "flamingo_balance_test",
-    "body_fat_percentage", "fat_mass", "waist_girth",
+    "illinois_agility_test", "sprint_30m", "body_fat_percentage", "fat_mass", "body_mass",
+    "flamingo_balance_test"
 }
 
 
 # ============================================================
-# PAGE STYLE
+# 4. YARDIMCI FONKSİYONLAR
 # ============================================================
 
-st.set_page_config(
-    page_title="SwimML Pro v1.0",
-    page_icon="🏊‍♂️",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-CUSTOM_CSS = f"""
-<style>
-    .stApp {{
-        background: linear-gradient(135deg, #F8FCFF 0%, #EAFBFF 42%, #FFFFFF 100%);
-    }}
-    div[data-testid="stSidebar"] {{display: none;}}
-    .block-container {{
-        padding-top: 1.2rem;
-        padding-bottom: 2.5rem;
-        max-width: 1200px;
-    }}
-    .hero {{
-        background: radial-gradient(circle at top left, {THEME['turquoise']} 0%, {THEME['navy']} 38%, #03111F 100%);
-        color: white;
-        padding: 28px 28px;
-        border-radius: 28px;
-        box-shadow: 0 18px 45px rgba(7, 26, 44, 0.26);
-        margin-bottom: 20px;
-        border: 1px solid rgba(255,255,255,0.18);
-    }}
-    .hero h1 {{
-        font-size: clamp(30px, 5vw, 56px);
-        line-height: 1.03;
-        margin: 0 0 10px 0;
-        font-weight: 900;
-        letter-spacing: -1.2px;
-    }}
-    .hero .subtitle {{
-        font-size: clamp(16px, 2vw, 23px);
-        opacity: 0.96;
-        margin-bottom: 14px;
-        font-weight: 650;
-    }}
-    .hero .developer {{
-        font-size: 14px;
-        opacity: 0.86;
-        margin-top: 10px;
-    }}
-    .pill {{
-        display: inline-block;
-        padding: 7px 12px;
-        border-radius: 999px;
-        background: rgba(255,255,255,0.13);
-        border: 1px solid rgba(255,255,255,0.22);
-        margin-right: 8px;
-        margin-top: 8px;
-        font-size: 13px;
-    }}
-    .card {{
-        background: rgba(255,255,255,0.92);
-        border: 1px solid rgba(0,184,200,0.18);
-        border-radius: 22px;
-        padding: 20px;
-        box-shadow: 0 12px 30px rgba(7, 26, 44, 0.08);
-        margin-bottom: 18px;
-    }}
-    .small-caption {{
-        color: {THEME['gray']};
-        font-size: 13px;
-    }}
-    .section-title {{
-        color: {THEME['navy']};
-        font-weight: 850;
-        font-size: 23px;
-        margin: 6px 0 12px 0;
-    }}
-    .metric-card {{
-        background: #FFFFFF;
-        border-radius: 20px;
-        padding: 18px;
-        border: 1px solid rgba(0,184,200,0.24);
-        box-shadow: 0 8px 26px rgba(7, 26, 44, 0.08);
-        height: 100%;
-    }}
-    .metric-title {{
-        color: {THEME['gray']};
-        font-size: 13px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }}
-    .metric-value {{
-        color: {THEME['navy']};
-        font-size: 34px;
-        font-weight: 900;
-        margin-top: 6px;
-        letter-spacing: -0.8px;
-    }}
-    .metric-note {{
-        color: {THEME['dark_gray']};
-        font-size: 13px;
-        margin-top: 4px;
-    }}
-    .ai-box {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #EAFBFF 100%);
-        border: 1px solid rgba(0,184,200,0.32);
-        border-left: 6px solid {THEME['turquoise']};
-        border-radius: 20px;
-        padding: 18px 20px;
-        color: {THEME['navy']};
-        box-shadow: 0 8px 26px rgba(7, 26, 44, 0.08);
-    }}
-    .footer-box {{
-        background: {THEME['navy']};
-        color: white;
-        border-radius: 24px;
-        padding: 22px;
-        margin-top: 26px;
-        border: 1px solid rgba(255,255,255,0.12);
-    }}
-    .footer-box p, .footer-box li {{
-        color: rgba(255,255,255,0.88);
-        font-size: 13px;
-    }}
-    .footer-box h3 {{
-        color: white;
-    }}
-    .stButton>button {{
-        width: 100%;
-        border-radius: 18px;
-        background: linear-gradient(135deg, {THEME['turquoise']} 0%, {THEME['navy']} 100%);
-        color: white;
-        font-weight: 850;
-        font-size: 20px;
-        padding: 0.85rem 1rem;
-        border: 0px;
-        box-shadow: 0 12px 28px rgba(0,184,200,0.28);
-    }}
-    .stButton>button:hover {{
-        transform: translateY(-1px);
-        box-shadow: 0 16px 34px rgba(0,184,200,0.34);
-        color: white;
-    }}
-    details {{
-        background: rgba(255,255,255,0.92) !important;
-        border-radius: 18px !important;
-        border: 1px solid rgba(0,184,200,0.20) !important;
-        box-shadow: 0 7px 20px rgba(7, 26, 44, 0.06) !important;
-        margin-bottom: 12px !important;
-    }}
-    summary {{
-        font-weight: 850 !important;
-        color: {THEME['navy']} !important;
-    }}
-</style>
-"""
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-
-
-# ============================================================
-# LOADERS
-# ============================================================
-
-@st.cache_data(show_spinner=False)
-def load_data_and_metadata():
+@st.cache_resource
+def load_system():
     data_path = Path(DATA_FILE)
-    metadata_path = Path(METADATA_FILE)
+    meta_path = Path(METADATA_FILE)
 
     if not data_path.exists():
-        st.error(f"Veri dosyası bulunamadı / Data file not found: {DATA_FILE}")
+        st.error(f"Veri dosyası bulunamadı: {DATA_FILE}")
         st.stop()
 
-    if not metadata_path.exists():
-        st.error(f"Metadata dosyası bulunamadı / Metadata file not found: {METADATA_FILE}")
+    if not meta_path.exists():
+        st.error(f"Model metadata dosyası bulunamadı: {METADATA_FILE}")
         st.stop()
 
-    df = pd.read_excel(data_path)
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        metadata = json.load(f)
+    df_loaded = pd.read_excel(data_path)
+    with open(meta_path, "r", encoding="utf-8") as f:
+        metadata_loaded = json.load(f)
 
-    return df, metadata
+    return df_loaded, metadata_loaded
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource
 def load_prediction_model(model_file):
     model_path = Path(str(model_file).replace("\\", "/"))
     if not model_path.exists():
-        st.error(f"Model dosyası bulunamadı / Model file not found: {model_path}")
+        st.error(f"Model dosyası bulunamadı: {model_path}")
         st.stop()
     return joblib.load(model_path)
 
 
-# ============================================================
-# HELPERS
-# ============================================================
+def get_default_value(feature):
+    defaults = {
+        "age": 15,
+        "body_height": 160.0,
+        "body_mass": 55.0,
+        "training_age": 4.0,
+        "vertical_jump": 35.0,
+        "standing_long_jump": 180.0,
+        "flexed_arm_hang": 30.0,
+        "sit_ups_1min": 35,
+        "illinois_agility_test": 18.0,
+        "sprint_30m": 5.0,
+        "hand_length": 17.0,
+        "arm_span": 165.0,
+        "arm_length": 65.0,
+        "leg_length": 80.0,
+        "sitting_height": 80.0,
+        "chest_girth": 80.0,
+        "biceps_girth": 25.0,
+        "flexed_biceps_girth": 27.0,
+        "forearm_girth": 22.0,
+        "thigh_girth": 45.0,
+        "calf_girth": 32.0,
+        "waist_girth": 70.0,
+        "hip_girth": 85.0,
+        "biacromial_breadth": 35.0,
+        "biiliac_breadth": 28.0,
+        "elbow_breadth": 6.0,
+        "wrist_breadth": 5.0,
+        "knee_breadth": 8.0,
+        "ankle_breadth": 6.0,
+        "sit_and_reach": 20.0,
+        "trunk_extension_height": 35.0,
+        "shoulder_extension_height": 40.0,
+        "shoulder_mobility": 0.0,
+        "flamingo_balance_test": 10.0,
+        "body_density": 1.05,
+        "body_fat_percentage": 15.0,
+        "fat_mass": 8.0,
+        "fat_free_mass": 45.0,
+        "handgrip_strength": 30.0,
+        "ankle_dorsiflexion_rom": 30.0,
+        "ankle_plantarflexion_rom": 45.0,
+        "foot_length": 24.0,
+    }
+    return defaults.get(feature, 0.0)
 
-def safe_float(value, default=np.nan):
+
+def label_for(feature, is_tr=True):
+    return FEATURE_LABELS_TR.get(feature, feature) if is_tr else FEATURE_LABELS_EN.get(feature, feature)
+
+
+def safe_float(value, default=0.0):
     try:
         if pd.isna(value):
             return default
@@ -394,178 +636,141 @@ def safe_float(value, default=np.nan):
         return default
 
 
-def get_default_value(feature):
-    return DEFAULTS.get(feature, 0.0)
+def get_model_metric(model_info, key, default=0.0):
+    return safe_float(model_info.get(key, default), default)
 
 
-def fmt(value, digits=2):
-    try:
-        if pd.isna(value):
-            return "-"
-        return f"{float(value):.{digits}f}"
-    except Exception:
-        return str(value)
-
-
-def normalize_score(value, mean, std, lower_is_better=False):
-    if pd.isna(value) or pd.isna(mean) or pd.isna(std) or std == 0:
+def calculate_percentile(group_data, target_col, prediction):
+    if group_data.empty or target_col not in group_data.columns:
         return 50.0
-    z = (value - mean) / std
-    if lower_is_better:
-        z = -z
-    score = 50 + (z * 15)
-    return max(0.0, min(100.0, score))
+    valid = group_data[target_col].dropna()
+    if len(valid) == 0:
+        return 50.0
+    # Yüzme süresinde düşük değer daha iyi olduğu için prediction'dan büyük olanların oranı performans yüzdeliğidir.
+    return float((valid > prediction).mean() * 100)
 
 
-def performance_comment(percentile, is_tr=True):
+def performance_level(percentile, is_tr=True):
     if percentile >= 85:
-        return ("Çok yüksek performans düzeyi", THEME["green"]) if is_tr else ("Very high performance level", THEME["green"])
+        return ("Çok yüksek performans düzeyi", SUCCESS) if is_tr else ("Very high performance level", SUCCESS)
     if percentile >= 65:
-        return ("İyi performans düzeyi", THEME["green"]) if is_tr else ("Good performance level", THEME["green"])
+        return ("İyi performans düzeyi", SUCCESS) if is_tr else ("Good performance level", SUCCESS)
     if percentile >= 40:
-        return ("Orta performans düzeyi", THEME["orange"]) if is_tr else ("Moderate performance level", THEME["orange"])
-    return ("Geliştirilmesi gereken performans düzeyi", THEME["red"]) if is_tr else ("Performance needs improvement", THEME["red"])
+        return ("Orta performans düzeyi", WARNING) if is_tr else ("Moderate performance level", WARNING)
+    return ("Geliştirilmesi gereken performans düzeyi", DANGER) if is_tr else ("Performance needs improvement", DANGER)
 
 
-def estimate_error_margin(model_info):
-    rmse = safe_float(model_info.get("rmse", np.nan))
-    mae = safe_float(model_info.get("mae", np.nan))
-    if not pd.isna(rmse):
-        return rmse
-    if not pd.isna(mae):
-        return mae
-    return 0.75
+def confidence_score(model_info):
+    r2 = get_model_metric(model_info, "r2", 0.50)
+    mape = get_model_metric(model_info, "mape", 10.0)
+    mae = get_model_metric(model_info, "mae", 1.0)
+
+    # Basit ve anlaşılır bir güven skoru: R² yüksek, MAPE ve MAE düşükse artar.
+    score = 50 + (r2 * 40) - (mape * 1.2) - (mae * 2.0)
+    return int(np.clip(score, 35, 98))
 
 
-def confidence_from_model(model_info):
-    r2 = safe_float(model_info.get("r2", np.nan))
-    mape = safe_float(model_info.get("mape", np.nan))
-    if not pd.isna(r2):
-        return max(45, min(98, 50 + r2 * 48))
-    if not pd.isna(mape):
-        return max(45, min(96, 100 - mape))
-    return 80
+def physical_profile_score(inputs, group_data, features):
+    if group_data.empty:
+        return 70
 
-
-def assign_features_to_groups(features):
-    remaining = list(features)
-    grouped = {k: [] for k in FEATURE_GROUPS.keys()}
-    grouped["other"] = []
-
-    for group, group_features in FEATURE_GROUPS.items():
-        for f in group_features:
-            if f in remaining:
-                grouped[group].append(f)
-                remaining.remove(f)
-    grouped["other"] = remaining
-    return grouped
-
-
-def feature_label(feature, is_tr=True):
-    return (FEATURE_LABELS_TR if is_tr else FEATURE_LABELS_EN).get(feature, feature)
-
-
-def group_title(group, is_tr=True):
-    return (GROUP_TITLES_TR if is_tr else GROUP_TITLES_EN).get(group, group)
-
-
-def calculate_domain_scores(inputs, group_data):
-    scores = {}
-    for group, group_features in FEATURE_GROUPS.items():
-        vals = []
-        for f in group_features:
-            if f in inputs and f in group_data.columns:
-                mean = group_data[f].mean()
-                std = group_data[f].std()
-                vals.append(normalize_score(inputs[f], mean, std, f in LOWER_IS_BETTER))
-        scores[group] = float(np.mean(vals)) if vals else 50.0
-    return scores
-
-
-def identify_strengths_and_needs(inputs, group_data, is_tr=True, max_items=5):
-    rows = []
-    for f, v in inputs.items():
+    scores = []
+    for f in features:
         if f not in group_data.columns:
             continue
-        mean = group_data[f].mean()
-        std = group_data[f].std()
-        score = normalize_score(v, mean, std, f in LOWER_IS_BETTER)
-        rows.append((f, score))
-
-    rows = sorted(rows, key=lambda x: x[1], reverse=True)
-    strengths = rows[:max_items]
-    needs = sorted(rows, key=lambda x: x[1])[:max_items]
-
-    strengths_txt = [feature_label(f, is_tr) for f, _ in strengths]
-    needs_txt = [feature_label(f, is_tr) for f, _ in needs]
-    return strengths_txt, needs_txt
-
-
-def ai_coach_comment(percentile, difference, error_margin, strengths, needs, is_tr=True):
-    if is_tr:
-        if percentile >= 65:
-            base = "Bu sporcu, seçilen yaş grubu ve cinsiyet referansına göre güçlü bir performans profili göstermektedir."
-        elif percentile >= 40:
-            base = "Bu sporcu, seçilen referans gruba göre orta düzeyde ve geliştirilebilir bir performans profili göstermektedir."
+        series = pd.to_numeric(group_data[f], errors="coerce").dropna()
+        if len(series) < 5:
+            continue
+        val = safe_float(inputs.get(f, np.nan), np.nan)
+        if pd.isna(val):
+            continue
+        if f in LOWER_IS_BETTER:
+            score = (series > val).mean() * 100
         else:
-            base = "Bu sporcu için performans gelişimini destekleyecek teknik, motorik ve fiziksel çalışmaların planlanması önerilir."
+            score = (series < val).mean() * 100
+        scores.append(score)
 
-        diff_txt = "ortalamanın üzerinde" if difference < 0 else "ortalamanın gerisinde"
-        strong_txt = ", ".join(strengths[:3]) if strengths else "belirgin güçlü alan hesaplanamadı"
-        need_txt = ", ".join(needs[:3]) if needs else "belirgin gelişim alanı hesaplanamadı"
+    if not scores:
+        return 70
+    return int(np.clip(np.nanmean(scores), 0, 100))
+
+
+def potential_score(percentile, physical_score, confidence):
+    # Performans orta fakat fiziksel profil yüksekse gelişim potansiyeli yükselir.
+    score = (0.35 * physical_score) + (0.25 * confidence) + (0.40 * (100 - abs(70 - percentile)))
+    return int(np.clip(score, 20, 98))
+
+
+def identify_strengths_and_needs(inputs, group_data, features, is_tr=True, max_items=5):
+    strengths = []
+    needs = []
+
+    if group_data.empty:
+        return (["Referans veri yetersiz"], ["Referans veri yetersiz"]) if is_tr else (["Insufficient reference data"], ["Insufficient reference data"])
+
+    for f in features:
+        if f not in group_data.columns:
+            continue
+        series = pd.to_numeric(group_data[f], errors="coerce").dropna()
+        if len(series) < 5:
+            continue
+
+        val = safe_float(inputs.get(f, np.nan), np.nan)
+        if pd.isna(val):
+            continue
+
+        if f in LOWER_IS_BETTER:
+            perc = (series > val).mean() * 100
+        else:
+            perc = (series < val).mean() * 100
+
+        label = label_for(f, is_tr)
+        if perc >= 70:
+            strengths.append((label, perc))
+        elif perc <= 35:
+            needs.append((label, perc))
+
+    strengths = sorted(strengths, key=lambda x: x[1], reverse=True)[:max_items]
+    needs = sorted(needs, key=lambda x: x[1])[:max_items]
+
+    if not strengths:
+        strengths = [("Belirgin güçlü alan saptanmadı" if is_tr else "No clear strength detected", 0)]
+    if not needs:
+        needs = [("Belirgin geliştirme alanı saptanmadı" if is_tr else "No clear development area detected", 0)]
+
+    return strengths, needs
+
+
+def coach_comment(prediction, group_mean, difference, percentile, conf, is_tr=True):
+    level_text, _ = performance_level(percentile, is_tr)
+    if is_tr:
+        if difference < 0:
+            diff_sentence = f"Sporcunun tahmini derecesi referans grubun ortalamasından {abs(difference):.2f} sn daha hızlı görünmektedir."
+        else:
+            diff_sentence = f"Sporcunun tahmini derecesi referans grubun ortalamasından {difference:.2f} sn daha yavaş görünmektedir."
         return (
-            f"{base} Tahmini derece, grup ortalamasına göre {diff_txt} bir konumu işaret etmektedir. "
-            f"Model hata aralığı yaklaşık ±{error_margin:.2f} sn olduğundan sonuç antrenör gözlemiyle birlikte yorumlanmalıdır. "
-            f"Öne çıkan güçlü alanlar: {strong_txt}. Geliştirilebilir alanlar: {need_txt}."
+            f"Bu analizde sporcunun tahmini 50 m derecesi {prediction:.2f} sn olarak hesaplanmıştır. "
+            f"{diff_sentence} Performans yüzdeliği %{percentile:.1f} olup sistem bu sonucu '{level_text}' olarak sınıflandırmaktadır. "
+            f"Tahmin güven göstergesi %{conf} düzeyindedir. Bu çıktı, antrenörün teknik gözlemi ve saha değerlendirmesiyle birlikte yorumlanmalıdır."
+        )
+    else:
+        if difference < 0:
+            diff_sentence = f"The predicted time appears {abs(difference):.2f} s faster than the reference group mean."
+        else:
+            diff_sentence = f"The predicted time appears {difference:.2f} s slower than the reference group mean."
+        return (
+            f"The predicted 50 m time is {prediction:.2f} s. "
+            f"{diff_sentence} The performance percentile is {percentile:.1f}%, classified as '{level_text}'. "
+            f"The prediction confidence indicator is {conf}%. This output should be interpreted together with the coach's technical observation and field assessment."
         )
 
-    if percentile >= 65:
-        base = "The swimmer shows a strong performance profile compared with the selected age-sex reference group."
-    elif percentile >= 40:
-        base = "The swimmer shows a moderate and improvable performance profile compared with the reference group."
-    else:
-        base = "Technical, motor and physical development work is recommended for this swimmer."
 
-    diff_txt = "above the group mean" if difference < 0 else "behind the group mean"
-    strong_txt = ", ".join(strengths[:3]) if strengths else "no clear strength could be calculated"
-    need_txt = ", ".join(needs[:3]) if needs else "no clear development area could be calculated"
-    return (
-        f"{base} The predicted time indicates a position {diff_txt}. "
-        f"Because the model error margin is approximately ±{error_margin:.2f} s, the result should be interpreted together with coach observation. "
-        f"Key strengths: {strong_txt}. Development areas: {need_txt}."
-    )
-
-
-def circular_gauge_html(title, value, caption, color):
-    value = max(0, min(100, float(value)))
-    return f"""
-    <div style="background:#fff;border:1px solid rgba(0,184,200,.22);border-radius:24px;padding:18px;text-align:center;box-shadow:0 10px 28px rgba(7,26,44,.08);height:100%;">
-      <div style="font-size:13px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:.04em;">{title}</div>
-      <div style="width:142px;height:142px;border-radius:50%;margin:14px auto 8px auto;background:conic-gradient({color} {value*3.6}deg,#E6EEF5 0deg);display:flex;align-items:center;justify-content:center;">
-        <div style="width:104px;height:104px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(7,26,44,.06);">
-          <div style="font-size:30px;font-weight:950;color:#071A2C;">{value:.0f}%</div>
-        </div>
-      </div>
-      <div style="font-size:14px;font-weight:800;color:#071A2C;">{caption}</div>
-    </div>
-    """
-
-
-def metric_card_html(title, value, note=""):
-    return f"""
-    <div class="metric-card">
-      <div class="metric-title">{title}</div>
-      <div class="metric-value">{value}</div>
-      <div class="metric-note">{note}</div>
-    </div>
-    """
-
-
-def fix_pdf_text(text):
+def pdf_safe(text):
+    # ReportLab Helvetica Türkçe karakterlerde sorun çıkarabildiği için sadeleştiriyoruz.
     replacements = {
-        "ı": "i", "İ": "I", "ğ": "g", "Ğ": "G", "ü": "u", "Ü": "U",
-        "ş": "s", "Ş": "S", "ö": "o", "Ö": "O", "ç": "c", "Ç": "C",
-        "²": "2", "±": "+/-", "–": "-", "—": "-",
+        "ç": "c", "Ç": "C", "ğ": "g", "Ğ": "G", "ı": "i", "İ": "I",
+        "ö": "o", "Ö": "O", "ş": "s", "Ş": "S", "ü": "u", "Ü": "U",
+        "²": "2", "±": "+/-", "–": "-", "—": "-"
     }
     text = str(text)
     for old, new in replacements.items():
@@ -573,119 +778,258 @@ def fix_pdf_text(text):
     return text
 
 
-def create_pdf_report(report):
+def make_pdf_report(is_tr, report_data):
     buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=1.4 * cm,
-        leftMargin=1.4 * cm,
-        topMargin=1.2 * cm,
-        bottomMargin=1.2 * cm,
-    )
-
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "TitleStyle", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=18,
-        leading=22, textColor=colors.HexColor("#071A2C"), spaceAfter=10
+    styles.add(ParagraphStyle(name="TitleBlue", parent=styles["Title"], textColor=colors.HexColor("#071A2C"), fontSize=18, leading=22))
+    styles.add(ParagraphStyle(name="SubTitle", parent=styles["Normal"], textColor=colors.HexColor("#0B2338"), fontSize=11, leading=15))
+    styles.add(ParagraphStyle(name="BodyNice", parent=styles["Normal"], fontSize=10, leading=14))
+
+    story = []
+    title = f"{APP_NAME} {APP_VERSION}"
+    subtitle = PAGE_TITLE_TR if is_tr else PAGE_TITLE_EN
+    story.append(Paragraph(pdf_safe(title), styles["TitleBlue"]))
+    story.append(Paragraph(pdf_safe(subtitle), styles["SubTitle"]))
+    story.append(Spacer(1, 12))
+
+    rows = []
+    if is_tr:
+        rows = [
+            ["Rapor No", report_data["report_id"]],
+            ["Tarih", report_data["date"]],
+            ["Ad Soyad", report_data["athlete_name"]],
+            ["Kulup", report_data["club_name"]],
+            ["Antrenor", report_data["coach_name"]],
+            ["Analiz Grubu", report_data["analysis_group"]],
+            ["Tahmini Derece", f"{report_data['prediction']:.2f} sn"],
+            ["Grup Ortalamasi", f"{report_data['group_mean']:.2f} sn"],
+            ["Fark", f"{report_data['difference']:.2f} sn"],
+            ["Performans Yuzdeligi", f"%{report_data['percentile']:.1f}"],
+            ["Tahmin Guveni", f"%{report_data['confidence']}"],
+            ["Model", report_data["model_name"]],
+            ["MAE", f"{report_data['mae']} sn"],
+            ["RMSE", f"{report_data['rmse']} sn"],
+            ["R2", str(report_data['r2'])],
+        ]
+    else:
+        rows = [
+            ["Report ID", report_data["report_id"]],
+            ["Date", report_data["date"]],
+            ["Athlete", report_data["athlete_name"]],
+            ["Club", report_data["club_name"]],
+            ["Coach", report_data["coach_name"]],
+            ["Analysis Group", report_data["analysis_group"]],
+            ["Predicted Time", f"{report_data['prediction']:.2f} s"],
+            ["Group Mean", f"{report_data['group_mean']:.2f} s"],
+            ["Difference", f"{report_data['difference']:.2f} s"],
+            ["Performance Percentile", f"{report_data['percentile']:.1f}%"],
+            ["Prediction Confidence", f"{report_data['confidence']}%"],
+            ["Model", report_data["model_name"]],
+            ["MAE", f"{report_data['mae']} s"],
+            ["RMSE", f"{report_data['rmse']} s"],
+            ["R2", str(report_data['r2'])],
+        ]
+
+    table = Table([[pdf_safe(a), pdf_safe(b)] for a, b in rows], colWidths=[150, 340])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#EAFBFF")),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#071A2C")),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#A7F3F7")),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 14))
+
+    section_title = "Antrenor Karar Destek Yorumu" if is_tr else "Coach Decision Support Comment"
+    story.append(Paragraph(pdf_safe(section_title), styles["Heading2"]))
+    story.append(Paragraph(pdf_safe(report_data["comment"]), styles["BodyNice"]))
+    story.append(Spacer(1, 12))
+
+    strengths_title = "Guclu Alanlar" if is_tr else "Strengths"
+    needs_title = "Gelistirilebilir Alanlar" if is_tr else "Development Areas"
+    story.append(Paragraph(pdf_safe(strengths_title), styles["Heading3"]))
+    for item, score in report_data["strengths"]:
+        suffix = f" (%{score:.1f})" if score else ""
+        story.append(Paragraph(pdf_safe(f"- {item}{suffix}"), styles["BodyNice"]))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph(pdf_safe(needs_title), styles["Heading3"]))
+    for item, score in report_data["needs"]:
+        suffix = f" (%{score:.1f})" if score else ""
+        story.append(Paragraph(pdf_safe(f"- {item}{suffix}"), styles["BodyNice"]))
+
+    story.append(Spacer(1, 16))
+    disclaimer = (
+        "Bu yazilim egitim, bilimsel arastirma ve performans analizine destek amaciyla gelistirilmistir. "
+        "Tahmin sonuclari tek basina kesin karar araci olarak kullanilmamalidir."
+        if is_tr else
+        "This software has been developed for education, scientific research, and performance analysis support. "
+        "Prediction results must not be used as the sole decision-making tool."
     )
-    h_style = ParagraphStyle(
-        "HeaderStyle", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=12,
-        leading=15, textColor=colors.HexColor("#071A2C"), spaceBefore=8, spaceAfter=6
-    )
-    p_style = ParagraphStyle(
-        "PStyle", parent=styles["BodyText"], fontName="Helvetica", fontSize=9,
-        leading=12, textColor=colors.HexColor("#334155")
-    )
+    story.append(Paragraph(pdf_safe(disclaimer), styles["BodyNice"]))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(pdf_safe(f"© 2026 {DEVELOPER_TR}. Tum haklari saklidir."), styles["BodyNice"]))
 
-    elements = []
-    elements.append(Paragraph(fix_pdf_text(report["title"]), title_style))
-    elements.append(Paragraph(fix_pdf_text(report["subtitle"]), p_style))
-    elements.append(Spacer(1, 8))
-
-    def add_table(title, rows):
-        elements.append(Paragraph(fix_pdf_text(title), h_style))
-        data = [[fix_pdf_text(a), fix_pdf_text(b)] for a, b in rows]
-        table = Table(data, colWidths=[5.2 * cm, 11.0 * cm])
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#EAFBFF")),
-            ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#071A2C")),
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-            ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFEFF5")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F8FCFF")]),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ]))
-        elements.append(table)
-        elements.append(Spacer(1, 8))
-
-    add_table(report["labels"]["athlete"], report["athlete_rows"])
-    add_table(report["labels"]["model"], report["model_rows"])
-    add_table(report["labels"]["result"], report["result_rows"])
-
-    elements.append(Paragraph(fix_pdf_text(report["labels"]["coach"]), h_style))
-    elements.append(Paragraph(fix_pdf_text(report["coach_comment"]), p_style))
-    elements.append(Spacer(1, 8))
-
-    add_table(report["labels"]["strengths"], [(str(i + 1), s) for i, s in enumerate(report["strengths"])])
-    add_table(report["labels"]["needs"], [(str(i + 1), s) for i, s in enumerate(report["needs"])])
-
-    elements.append(Paragraph(fix_pdf_text(report["labels"]["copyright"]), h_style))
-    elements.append(Paragraph(fix_pdf_text(report["copyright_text"]), p_style))
-
-    doc.build(elements)
+    doc.build(story)
     buffer.seek(0)
     return buffer
 
 
+def render_hero(is_tr):
+    title = PAGE_TITLE_TR if is_tr else PAGE_TITLE_EN
+    desc = (
+        "12–17 yaş genç yüzücülerde 50 m stil performansını; antropometrik, motorik, esneklik ve vücut kompozisyonu ölçümlerine göre analiz eden yapay zekâ destekli karar destek sistemi."
+        if is_tr else
+        "An AI-supported decision support system that analyzes 50 m stroke performance in 12–17-year-old swimmers based on anthropometric, motor, flexibility, and body composition measurements."
+    )
+    dev = f"Geliştirici: {DEVELOPER_TR} | {UNIVERSITY_TR}" if is_tr else f"Developer: {DEVELOPER_EN} | {UNIVERSITY_EN}"
+    st.markdown(
+        f"""
+        <div class="hero-card">
+            <div class="hero-title">🏊‍♂️ {APP_NAME} {APP_VERSION}</div>
+            <div class="hero-subtitle">{title}</div>
+            <div class="hero-desc">{desc}</div>
+            <div class="hero-footer">{dev}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_section(title):
+    st.markdown(
+        f"""
+        <div class="section-card">
+            <div class="section-title">{title}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_metric(label, value, small=""):
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+            <div class="metric-small">{small}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_gauge(title, value, desc, color=TURQUOISE):
+    value_int = int(np.clip(value, 0, 100))
+    st.markdown(
+        f"""
+        <div class="gauge-wrap">
+            <div class="gauge" style="--p:{value_int}; --c:{color};"><span>{value_int}%</span></div>
+            <div class="gauge-title">{title}</div>
+            <div class="gauge-desc">{desc}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_list_card(title, items, icon="✅"):
+    lis = "".join([f"<div class='list-item'>{icon} {item[0]}" + (f" <span style='color:{TEXT_MUTED};'>%{item[1]:.1f}</span>" if item[1] else "") + "</div>" for item in items])
+    st.markdown(
+        f"""
+        <div class="list-card">
+            <div class="list-title">{title}</div>
+            {lis}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_footer(is_tr):
+    if is_tr:
+        title = f"ℹ️ {APP_NAME} {APP_VERSION} Hakkında"
+        body = f"""
+        <b>Geliştirici:</b> {DEVELOPER_TR}<br>
+        <b>Kurum:</b> {UNIVERSITY_TR}<br><br>
+        Bu yazılım eğitim, bilimsel araştırma ve performans analizine destek amacıyla geliştirilmiştir. 
+        Üretilen tahminler, antrenörün mesleki değerlendirmesinin yerine geçmez; karar sürecini desteklemek amacıyla kullanılmalıdır.<br><br>
+        <b>Telif ve Kullanım:</b> © 2026 {DEVELOPER_TR}. Tüm hakları saklıdır. Bu yazılımın kaynak kodlarının, algoritmalarının, yapay zekâ modellerinin, kullanıcı arayüzünün, raporlarının ve veri yapısının yazılı izin alınmaksızın çoğaltılması, kopyalanması, değiştirilmesi, tersine mühendislik uygulanması, yeniden dağıtılması, ticari amaçla kullanılması veya başka yazılımlara entegre edilmesi yasaktır.
+        """
+    else:
+        title = f"ℹ️ About {APP_NAME} {APP_VERSION}"
+        body = f"""
+        <b>Developer:</b> {DEVELOPER_EN}<br>
+        <b>Institution:</b> {UNIVERSITY_EN}<br><br>
+        This software has been developed for education, scientific research, and performance analysis support. 
+        Predictions do not replace professional coaching judgment; they should support the decision-making process.<br><br>
+        <b>Copyright and Use:</b> © 2026 {DEVELOPER_EN}. All rights reserved. Unauthorized reproduction, copying, modification, reverse engineering, redistribution, commercial use, integration into another software system, or use of the source code, algorithms, AI models, user interface, reports, and data structure is prohibited without written permission.
+        """
+    st.markdown(
+        f"""
+        <div class="footer-card">
+            <div class="footer-title">{title}</div>
+            <div class="footer-text">{body}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def input_grid(features, inputs, is_tr=True):
+    # Özellikle mobilde labels net görünsün diye Streamlit label kullanıyoruz.
+    for i in range(0, len(features), 2):
+        col1, col2 = st.columns(2)
+        pair = features[i:i+2]
+        for col, f in zip([col1, col2], pair):
+            with col:
+                default_value = get_default_value(f)
+                label = label_for(f, is_tr)
+                if f in ["age", "sit_ups_1min"]:
+                    inputs[f] = st.number_input(label, min_value=0, max_value=300, value=int(default_value), key=f"input_{f}")
+                else:
+                    inputs[f] = st.number_input(label, min_value=0.0, max_value=500.0, value=float(default_value), key=f"input_{f}")
+
+
+def categorize_features(features):
+    fset = list(features)
+    ant = [f for f in fset if f in ANTHROPOMETRY]
+    mot = [f for f in fset if f in MOTOR]
+    mob = [f for f in fset if f in MOBILITY]
+    comp = [f for f in fset if f in BODY_COMP]
+    other = [f for f in fset if f not in set(ant + mot + mob + comp)]
+    return ant, mot, mob, comp, other
+
+
 # ============================================================
-# APP
+# 5. ANA UYGULAMA
 # ============================================================
 
-df, metadata = load_data_and_metadata()
+df, metadata = load_system()
 
-language = st.radio("Dil / Language", ["🇹🇷 Türkçe", "🇺🇸 English"], horizontal=True, label_visibility="collapsed")
+# Dil seçimi ana ekranda sabit
+language = st.radio(
+    "Dil / Language",
+    ["🇹🇷 Türkçe", "🇺🇸 English"],
+    horizontal=True,
+    index=0
+)
 is_tr = language.startswith("🇹🇷")
 
-if is_tr:
-    hero_title = f"SwimML Pro {APP_VERSION}"
-    hero_subtitle = "50 m Yüzme Performans Tahmin ve Antrenör Karar Destek Sistemi"
-    hero_desc = "Genç yüzücülerde stil, yaş grubu ve cinsiyete özgü performans tahmini; antrenör karar sürecini destekleyen sade ve bilimsel arayüz."
-    dev_line = f"Geliştirici: {DEVELOPER_TR} | {UNIVERSITY_TR}"
-else:
-    hero_title = f"SwimML Pro {APP_VERSION}"
-    hero_subtitle = "50 m Prediction Coach Decision Support System"
-    hero_desc = "A style-, age-group- and sex-specific 50 m swimming performance prediction interface designed to support coaching decisions."
-    dev_line = f"Developer: {DEVELOPER_EN} | {UNIVERSITY_EN}"
+render_hero(is_tr)
 
-st.markdown(
-    f"""
-    <div class="hero">
-      <h1>🏊‍♂️ {hero_title}</h1>
-      <div class="subtitle">{hero_subtitle}</div>
-      <div>{hero_desc}</div>
-      <div>
-        <span class="pill">AI-Based</span>
-        <span class="pill">50 m Prediction</span>
-        <span class="pill">Coach Decision Support</span>
-        <span class="pill">Mobile Ready</span>
-      </div>
-      <div class="developer">{dev_line}</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# Analiz grubu seçimi
+render_section("📌 Analiz Grubu Seçimi" if is_tr else "📌 Analysis Group Selection")
 
-# Selection panel
-st.markdown(f"<div class='card'><div class='section-title'>{'📌 Analiz Grubu Seçimi' if is_tr else '📌 Analysis Group Selection'}</div>", unsafe_allow_html=True)
-
-c1, c2, c3 = st.columns(3)
-with c1:
+col1, col2, col3 = st.columns(3)
+with col1:
     if is_tr:
         style_display = st.selectbox("Stil", list(STYLE_TR.values()))
         style = {v: k for k, v in STYLE_TR.items()}[style_display]
@@ -693,37 +1037,21 @@ with c1:
         style_display = st.selectbox("Stroke", list(STYLE_EN.values()))
         style = {v: k for k, v in STYLE_EN.items()}[style_display]
 
-with c2:
+with col2:
     if is_tr:
-        sex_display = st.selectbox("Cinsiyet", list(SEX_TR.values()))
-        sex = {v: k for k, v in SEX_TR.items()}[sex_display]
+        sex_display = st.selectbox("Cinsiyet", ["Kadın", "Erkek"])
+        sex = "female" if sex_display == "Kadın" else "male"
     else:
-        sex_display = st.selectbox("Sex", list(SEX_EN.values()))
-        sex = {v: k for k, v in SEX_EN.items()}[sex_display]
+        sex_display = st.selectbox("Sex", ["Female", "Male"])
+        sex = "female" if sex_display == "Female" else "male"
 
-with c3:
-    age_group = st.selectbox("Yaş Grubu" if is_tr else "Age Group", AGE_GROUPS)
+with col3:
+    age_group = st.selectbox("Yaş Grubu" if is_tr else "Age Group", ["12_13", "14_15", "16_17"])
 
-selected_group_text = (
-    f"Seçilen analiz grubu: {style_display} / {sex_display} / {age_group.replace('_', '-')} yaş"
-    if is_tr else
-    f"Selected analysis group: {style_display} / {sex_display} / age {age_group.replace('_', '-')}"
-)
-st.markdown(f"<div class='small-caption'>{selected_group_text}</div></div>", unsafe_allow_html=True)
-
-# Athlete info
-st.markdown(f"<div class='card'><div class='section-title'>{'👤 Sporcu Bilgileri' if is_tr else '👤 Athlete Information'}</div>", unsafe_allow_html=True)
-a1, a2, a3 = st.columns(3)
-with a1:
-    athlete_name = st.text_input("Ad Soyad" if is_tr else "Full Name", value="")
-with a2:
-    club_name = st.text_input("Kulüp" if is_tr else "Club", value="")
-with a3:
-    coach_name = st.text_input("Antrenör Ad Soyad" if is_tr else "Coach Full Name", value="")
-st.markdown("</div>", unsafe_allow_html=True)
-
-# Model check
 model_key = f"{style}_{age_group}_{sex}"
+analysis_group = f"{style_display} / {sex_display} / {age_group.replace('_', '-')} " + ("yaş" if is_tr else "years")
+st.markdown(f"<div class='selected-group'>{'Seçilen analiz grubu' if is_tr else 'Selected analysis group'}: {analysis_group}</div>", unsafe_allow_html=True)
+
 if model_key not in metadata:
     st.error("Bu seçim için kayıtlı model bulunamadı." if is_tr else "No registered model was found for this selection.")
     st.stop()
@@ -732,63 +1060,55 @@ model_info = metadata[model_key]
 model = load_prediction_model(model_info["model_file"])
 features = model_info.get("features_en", model_info.get("features", []))
 if not features:
-    st.error("Metadata içinde model değişkenleri bulunamadı." if is_tr else "Model features were not found in metadata.")
+    st.error("Model değişken listesi bulunamadı." if is_tr else "Model feature list was not found.")
     st.stop()
 
-target_col = model_info.get("target")
-if not target_col or target_col not in df.columns:
-    st.error("Hedef değişken veri setinde bulunamadı." if is_tr else "Target variable was not found in the dataset.")
-    st.stop()
+# Sporcu bilgileri
+render_section("👤 Sporcu Bilgileri" if is_tr else "👤 Athlete Information")
+col1, col2, col3 = st.columns(3)
+with col1:
+    athlete_name = st.text_input("Ad Soyad" if is_tr else "Full Name", value="")
+with col2:
+    club_name = st.text_input("Kulüp" if is_tr else "Club", value="")
+with col3:
+    coach_name = st.text_input("Antrenör Ad Soyad" if is_tr else "Coach Full Name", value="")
 
-# Inputs
-st.markdown(f"<div class='card'><div class='section-title'>{'📏 Ölçüm Girişi' if is_tr else '📏 Measurement Entry'}</div>", unsafe_allow_html=True)
+# Ölçüm girişi
+render_section("📏 Ölçüm Girişi" if is_tr else "📏 Measurement Entry")
 st.markdown(
-    "<div class='small-caption'>▶ işaretli başlıklara basarak ölçüm alanlarını açabilirsiniz.</div>" if is_tr else
-    "<div class='small-caption'>Tap the ▶ sections to expand measurement fields.</div>",
-    unsafe_allow_html=True,
+    f"<div class='soft-note'>{'👇 Aç / Kapat işaretli başlıklara basarak ölçüm alanlarını açabilirsiniz.' if is_tr else '👇 Tap the Open / Close headings to display measurement fields.'}</div>",
+    unsafe_allow_html=True
 )
 
-grouped_features = assign_features_to_groups(features)
+ant, mot, mob, comp, other = categorize_features(features)
 inputs = {}
 
-for group_name, group_features in grouped_features.items():
-    if not group_features:
-        continue
-    with st.expander(group_title(group_name, is_tr), expanded=(group_name == "anthropometry")):
-        cols = st.columns(2)
-        for idx, feature in enumerate(group_features):
-            label = feature_label(feature, is_tr)
-            default_value = get_default_value(feature)
-            with cols[idx % 2]:
-                if feature in ["age", "sit_ups_1min"]:
-                    inputs[feature] = st.number_input(
-                        label,
-                        min_value=0,
-                        max_value=300,
-                        value=int(default_value),
-                        step=1,
-                        key=f"input_{feature}",
-                    )
-                else:
-                    inputs[feature] = st.number_input(
-                        label,
-                        min_value=0.0,
-                        max_value=500.0,
-                        value=float(default_value),
-                        step=0.1,
-                        key=f"input_{feature}",
-                    )
+if ant:
+    with st.expander("👇 Aç / Kapat: Antropometrik Ölçümler" if is_tr else "👇 Open / Close: Anthropometric Measurements", expanded=True):
+        input_grid(ant, inputs, is_tr)
+if mot:
+    with st.expander("👇 Aç / Kapat: Motorik Performans Testleri" if is_tr else "👇 Open / Close: Motor Performance Tests", expanded=False):
+        input_grid(mot, inputs, is_tr)
+if mob:
+    with st.expander("👇 Aç / Kapat: Esneklik ve Mobilite" if is_tr else "👇 Open / Close: Flexibility and Mobility", expanded=False):
+        input_grid(mob, inputs, is_tr)
+if comp:
+    with st.expander("👇 Aç / Kapat: Vücut Kompozisyonu" if is_tr else "👇 Open / Close: Body Composition", expanded=False):
+        input_grid(comp, inputs, is_tr)
+if other:
+    with st.expander("👇 Aç / Kapat: Diğer Ölçümler" if is_tr else "👇 Open / Close: Other Measurements", expanded=False):
+        input_grid(other, inputs, is_tr)
 
-st.info((f"Modelde kullanılan değişken sayısı: {len(features)}" if is_tr else f"Number of variables used in the model: {len(features)}"))
-st.markdown("</div>", unsafe_allow_html=True)
+st.info((f"Modelde kullanılan değişken sayısı: {len(features)}") if is_tr else (f"Number of variables used in the model: {len(features)}"))
 
-# Prediction button
-button_label = "🧠 Tahmin Et ve Karar Destek Raporu Oluştur" if is_tr else "🧠 Predict and Generate Coach Decision Report"
-predict_clicked = st.button(button_label)
+button_text = "🧠 Tahmin Et ve Karar Destek Raporu Oluştur" if is_tr else "🧠 Predict and Generate Decision Support Report"
+run_prediction = st.button(button_text, use_container_width=False)
 
-if predict_clicked:
-    input_df = pd.DataFrame([inputs])
-    input_df = input_df.reindex(columns=features)
+if run_prediction:
+    report_id = f"SWIM-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+
+    # Modelin beklediği sırayla input dataframe
+    input_df = pd.DataFrame([{f: inputs.get(f, get_default_value(f)) for f in features}])
 
     try:
         prediction = float(model.predict(input_df)[0])
@@ -796,173 +1116,114 @@ if predict_clicked:
         st.error(("Tahmin sırasında hata oluştu: " if is_tr else "Prediction error: ") + str(e))
         st.stop()
 
+    target_col = model_info.get("target")
+    if not target_col or target_col not in df.columns:
+        st.error("Hedef değişken veri setinde bulunamadı." if is_tr else "Target variable was not found in the dataset.")
+        st.stop()
+
     group_data = df[(df["sex"] == sex) & (df["age_group"] == age_group)].copy()
-    if group_data.empty:
-        group_data = df.copy()
-        st.warning("Seçilen gruba ait veri bulunamadı; genel veri seti referans alındı." if is_tr else "No data for selected group; full dataset was used as reference.")
-
-    group_mean = safe_float(group_data[target_col].mean())
-    group_std = safe_float(group_data[target_col].std())
+    group_mean = safe_float(group_data[target_col].mean(), prediction)
     difference = prediction - group_mean
-    percentile = float((group_data[target_col] > prediction).mean() * 100) if target_col in group_data else 50.0
-    percentile = max(0, min(100, percentile))
-    error_margin = estimate_error_margin(model_info)
-    confidence = confidence_from_model(model_info)
+    percentile = calculate_percentile(group_data, target_col, prediction)
+    level_text, level_color = performance_level(percentile, is_tr)
+    conf = confidence_score(model_info)
+    physical_score = physical_profile_score(inputs, group_data, features)
+    potential = potential_score(percentile, physical_score, conf)
+    strengths, needs = identify_strengths_and_needs(inputs, group_data, features, is_tr)
+    comment = coach_comment(prediction, group_mean, difference, percentile, conf, is_tr)
 
-    comment, comment_color = performance_comment(percentile, is_tr)
-    domain_scores = calculate_domain_scores(inputs, group_data)
-    physical_profile = float(np.mean(list(domain_scores.values()))) if domain_scores else 50.0
-    development_potential = max(35, min(98, 100 - abs(percentile - 70) * 0.7 + (100 - physical_profile) * 0.15))
+    mae = get_model_metric(model_info, "mae", 0.0)
+    rmse = get_model_metric(model_info, "rmse", 0.0)
+    r2 = get_model_metric(model_info, "r2", 0.0)
+    error_margin = mae if mae > 0 else rmse
 
-    strengths, needs = identify_strengths_and_needs(inputs, group_data, is_tr)
-    coach_comment = ai_coach_comment(percentile, difference, error_margin, strengths, needs, is_tr)
+    render_section("🏁 Tahmin Sonucu" if is_tr else "🏁 Prediction Result")
 
-    st.markdown(f"<div class='card'><div class='section-title'>{'🚀 Tahmin Sonucu' if is_tr else '🚀 Prediction Result'}</div>", unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        render_metric("Tahmini Derece" if is_tr else "Predicted Time", f"{prediction:.2f} sn" if is_tr else f"{prediction:.2f} s", style_display)
+    with m2:
+        render_metric("Grup Ortalaması" if is_tr else "Group Mean", f"{group_mean:.2f} sn" if is_tr else f"{group_mean:.2f} s", sex_display)
+    with m3:
+        diff_text = f"{difference:+.2f} sn" if is_tr else f"{difference:+.2f} s"
+        render_metric("Fark" if is_tr else "Difference", diff_text, "Negatif değer daha hızlıdır" if is_tr else "Negative means faster")
+    with m4:
+        render_metric("Hata Aralığı" if is_tr else "Error Range", f"±{error_margin:.2f} sn" if is_tr else f"±{error_margin:.2f} s", "Model MAE/RMSE temelli" if is_tr else "Based on model MAE/RMSE")
 
-    r1, r2, r3, r4 = st.columns(4)
-    with r1:
-        st.markdown(metric_card_html("Tahmini Derece" if is_tr else "Predicted Time", f"{prediction:.2f} sn" if is_tr else f"{prediction:.2f} s", style_display), unsafe_allow_html=True)
-    with r2:
-        st.markdown(metric_card_html("Grup Ortalaması" if is_tr else "Group Mean", f"{group_mean:.2f} sn" if is_tr else f"{group_mean:.2f} s", selected_group_text), unsafe_allow_html=True)
-    with r3:
-        diff_note = "daha hızlı" if difference < 0 and is_tr else "daha yavaş" if is_tr else "faster" if difference < 0 else "slower"
-        st.markdown(metric_card_html("Fark" if is_tr else "Difference", f"{difference:+.2f} sn" if is_tr else f"{difference:+.2f} s", diff_note), unsafe_allow_html=True)
-    with r4:
-        st.markdown(metric_card_html("Hata Aralığı" if is_tr else "Error Margin", f"±{error_margin:.2f} sn" if is_tr else f"±{error_margin:.2f} s", "RMSE/MAE"), unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
+    render_section("⭕ Dairesel Performans Göstergeleri" if is_tr else "⭕ Circular Performance Indicators")
     g1, g2, g3, g4 = st.columns(4)
     with g1:
-        st.markdown(circular_gauge_html("Performans" if is_tr else "Performance", percentile, comment, comment_color), unsafe_allow_html=True)
+        render_gauge("Performans" if is_tr else "Performance", percentile, level_text, level_color)
     with g2:
-        st.markdown(circular_gauge_html("Tahmin Güveni" if is_tr else "Prediction Confidence", confidence, "Model güven düzeyi" if is_tr else "Model confidence", THEME["turquoise"]), unsafe_allow_html=True)
+        render_gauge("Tahmin Güveni" if is_tr else "Prediction Confidence", conf, "Model doğruluk göstergesi" if is_tr else "Model reliability indicator", TURQUOISE)
     with g3:
-        st.markdown(circular_gauge_html("Fiziksel Profil" if is_tr else "Physical Profile", physical_profile, "Ölçüm profili" if is_tr else "Measurement profile", THEME["green"] if physical_profile >= 65 else THEME["orange"]), unsafe_allow_html=True)
+        render_gauge("Fiziksel Profil" if is_tr else "Physical Profile", physical_score, "Referans gruba göre" if is_tr else "Compared with reference group", SUCCESS if physical_score >= 65 else WARNING)
     with g4:
-        st.markdown(circular_gauge_html("Gelişim Potansiyeli" if is_tr else "Development Potential", development_potential, "Antrenman potansiyeli" if is_tr else "Training potential", THEME["turquoise2"]), unsafe_allow_html=True)
+        render_gauge("Gelişim Potansiyeli" if is_tr else "Development Potential", potential, "Karar destek puanı" if is_tr else "Decision support score", SUCCESS if potential >= 65 else WARNING)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="coach-card">
+            <div class="coach-title">🤖 {'AI Coach Karar Destek Yorumu' if is_tr else 'AI Coach Decision Support Comment'}</div>
+            <div class="coach-text">{comment}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    st.markdown(f"""
-    <div class="ai-box">
-      <div style="font-size:18px;font-weight:900;margin-bottom:8px;">{'🤖 AI Coach Karar Destek Yorumu' if is_tr else '🤖 AI Coach Decision Support Comment'}</div>
-      <div style="font-size:15px;line-height:1.55;">{coach_comment}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        render_list_card("✅ Güçlü Alanlar" if is_tr else "✅ Strengths", strengths, "✅")
+    with c2:
+        render_list_card("🔧 Geliştirilebilir Alanlar" if is_tr else "🔧 Development Areas", needs, "🔧")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    s_col, n_col = st.columns(2)
-    with s_col:
-        st.markdown(f"<div class='card'><div class='section-title'>{'✅ Güçlü Alanlar' if is_tr else '✅ Strengths'}</div>", unsafe_allow_html=True)
-        for item in strengths:
-            st.markdown(f"- {item}")
-        st.markdown("</div>", unsafe_allow_html=True)
-    with n_col:
-        st.markdown(f"<div class='card'><div class='section-title'>{'🔧 Geliştirilebilir Alanlar' if is_tr else '🔧 Development Areas'}</div>", unsafe_allow_html=True)
-        for item in needs:
-            st.markdown(f"- {item}")
-        st.markdown("</div>", unsafe_allow_html=True)
+    render_section("🧠 Model Doğruluk Bilgileri" if is_tr else "🧠 Model Accuracy Information")
+    info_cols = st.columns(4)
+    with info_cols[0]:
+        render_metric("Model", str(model_info.get("model", "Model")), "")
+    with info_cols[1]:
+        render_metric("MAE", f"{mae:.2f} sn" if is_tr else f"{mae:.2f} s", "")
+    with info_cols[2]:
+        render_metric("RMSE", f"{rmse:.2f} sn" if is_tr else f"{rmse:.2f} s", "")
+    with info_cols[3]:
+        render_metric("R²", f"{r2:.3f}", "")
 
-    with st.expander("▶ Model Doğruluk Bilgileri" if is_tr else "▶ Model Accuracy Information", expanded=False):
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Model", str(model_info.get("model", "-")))
-        m2.metric("R²", str(model_info.get("r2", "-")))
-        m3.metric("Pearson r", str(model_info.get("pearson_r", "-")))
-        m4, m5, m6 = st.columns(3)
-        m4.metric("MAE", str(model_info.get("mae", "-")))
-        m5.metric("RMSE", str(model_info.get("rmse", "-")))
-        m6.metric("MAPE", str(model_info.get("mape", "-")))
-        st.write(("Toplam veri:" if is_tr else "Total sample:"), model_info.get("n_total", "-"))
-        st.write(("Eğitim verisi:" if is_tr else "Training sample:"), model_info.get("n_train", "-"))
-        st.write(("Bağımsız test verisi:" if is_tr else "Independent test sample:"), model_info.get("n_test", "-"))
+    st.markdown(
+        f"""
+        <div class="warning-box">
+        {'Bu sistem karar destek amacıyla geliştirilmiştir. Tahmin sonucu tek başına kesin sporcu seçimi, performans değerlendirmesi veya sağlık kararı için kullanılmamalıdır.' if is_tr else 'This system is designed for decision support. Prediction results must not be used alone for definitive athlete selection, performance evaluation, or health-related decisions.'}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    report_id = f"SWIMML-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
-    report_title = "SwimML Pro v1.0 Performans Raporu" if is_tr else "SwimML Pro v1.0 Performance Report"
-    report_subtitle = hero_subtitle
-
-    report = {
-        "title": report_title,
-        "subtitle": report_subtitle,
-        "labels": {
-            "athlete": "Sporcu Bilgileri" if is_tr else "Athlete Information",
-            "model": "Model Bilgileri" if is_tr else "Model Information",
-            "result": "Tahmin Sonucu" if is_tr else "Prediction Result",
-            "coach": "AI Coach Karar Destek Yorumu" if is_tr else "AI Coach Decision Support Comment",
-            "strengths": "Güçlü Alanlar" if is_tr else "Strengths",
-            "needs": "Geliştirilebilir Alanlar" if is_tr else "Development Areas",
-            "copyright": "Telif ve Kullanım Koşulları" if is_tr else "Copyright and Terms of Use",
-        },
-        "athlete_rows": [
-            ("Rapor No" if is_tr else "Report ID", report_id),
-            ("Ad Soyad" if is_tr else "Full Name", athlete_name),
-            ("Kulüp" if is_tr else "Club", club_name),
-            ("Antrenör Ad Soyad" if is_tr else "Coach Full Name", coach_name),
-            ("Rapor Tarihi" if is_tr else "Report Date", datetime.now().strftime("%d.%m.%Y %H:%M")),
-        ],
-        "model_rows": [
-            ("Analiz Grubu" if is_tr else "Analysis Group", selected_group_text),
-            ("Model Anahtarı" if is_tr else "Model Key", model_key),
-            ("Model" if is_tr else "Model", str(model_info.get("model", "-"))),
-            ("Değişken Sayısı" if is_tr else "Number of Variables", str(len(features))),
-            ("MAE", str(model_info.get("mae", "-"))),
-            ("RMSE", str(model_info.get("rmse", "-"))),
-            ("R2", str(model_info.get("r2", "-"))),
-        ],
-        "result_rows": [
-            ("Tahmini Derece" if is_tr else "Predicted Time", f"{prediction:.2f} sn" if is_tr else f"{prediction:.2f} s"),
-            ("Grup Ortalaması" if is_tr else "Group Mean", f"{group_mean:.2f} sn" if is_tr else f"{group_mean:.2f} s"),
-            ("Fark" if is_tr else "Difference", f"{difference:+.2f} sn" if is_tr else f"{difference:+.2f} s"),
-            ("Performans Yüzdeliği" if is_tr else "Performance Percentile", f"%{percentile:.1f}"),
-            ("Tahmin Güveni" if is_tr else "Prediction Confidence", f"%{confidence:.1f}"),
-            ("Fiziksel Profil" if is_tr else "Physical Profile", f"%{physical_profile:.1f}"),
-            ("Gelişim Potansiyeli" if is_tr else "Development Potential", f"%{development_potential:.1f}"),
-            ("Hata Aralığı" if is_tr else "Error Margin", f"±{error_margin:.2f} sn" if is_tr else f"±{error_margin:.2f} s"),
-            ("Performans Yorumu" if is_tr else "Performance Comment", comment),
-        ],
-        "coach_comment": coach_comment,
+    report_data = {
+        "report_id": report_id,
+        "date": datetime.now().strftime("%d.%m.%Y %H:%M"),
+        "athlete_name": athlete_name,
+        "club_name": club_name,
+        "coach_name": coach_name,
+        "analysis_group": analysis_group,
+        "prediction": prediction,
+        "group_mean": group_mean,
+        "difference": difference,
+        "percentile": percentile,
+        "confidence": conf,
+        "model_name": str(model_info.get("model", "Model")),
+        "mae": mae,
+        "rmse": rmse,
+        "r2": r2,
+        "comment": comment,
         "strengths": strengths,
         "needs": needs,
-        "copyright_text": (
-            f"© 2026 {DEVELOPER_TR}. Tüm hakları saklıdır. Bu yazılım eğitim, bilimsel araştırma ve antrenör karar destek amacıyla geliştirilmiştir. "
-            "Yazılımın kaynak kodlarının, algoritmalarının, yapay zekâ modellerinin, kullanıcı arayüzünün, veri yapısının ve rapor çıktılarının yazılı izin alınmaksızın çoğaltılması, kopyalanması, değiştirilmesi, tersine mühendislik uygulanması, yeniden dağıtılması, ticari amaçla kullanılması veya başka sistemlere entegre edilmesi yasaktır. "
-            "Tahmin sonuçları tek başına kesin karar aracı değildir; uzman antrenör değerlendirmesiyle birlikte yorumlanmalıdır."
-            if is_tr else
-            f"© 2026 {DEVELOPER_EN}. All rights reserved. This software was developed for education, scientific research and coaching decision support. "
-            "Unauthorized reproduction, copying, modification, reverse engineering, redistribution, commercial use, integration into other systems, or reuse of its source code, algorithms, AI models, user interface, data structure and report outputs is prohibited without written permission. "
-            "Prediction results are not a standalone final decision tool and must be interpreted together with expert coaching evaluation."
-        ),
     }
-
-    pdf = create_pdf_report(report)
+    pdf = make_pdf_report(is_tr, report_data)
+    pdf_name = f"swimml_pro_{model_key}_{report_id}.pdf"
     st.download_button(
         label="📄 PDF Raporu İndir" if is_tr else "📄 Download PDF Report",
         data=pdf,
-        file_name=f"swimml_pro_v1_{model_key}_{report_id}.pdf",
-        mime="application/pdf",
+        file_name=pdf_name,
+        mime="application/pdf"
     )
 
-# Footer
-if is_tr:
-    footer_html = f"""
-    <div class="footer-box">
-      <h3>ℹ️ SwimML Pro {APP_VERSION} Hakkında</h3>
-      <p><b>50 m Yüzme Performans Tahmin ve Antrenör Karar Destek Sistemi</b></p>
-      <p><b>Geliştirici:</b> {DEVELOPER_TR}<br><b>Kurum:</b> {UNIVERSITY_TR}</p>
-      <p>Bu yazılım eğitim, bilimsel araştırma ve antrenör karar destek amacıyla geliştirilmiştir. Tahmin sonuçları uzman antrenör değerlendirmesiyle birlikte yorumlanmalıdır.</p>
-      <p><b>Telif Hakkı:</b> © 2026 {DEVELOPER_TR}. Tüm hakları saklıdır.</p>
-      <p>Bu yazılımın kaynak kodlarının, algoritmalarının, yapay zekâ modellerinin, kullanıcı arayüzünün, grafiklerinin, veri yapısının ve rapor çıktılarının yazılı izin alınmaksızın çoğaltılması, kopyalanması, değiştirilmesi, tersine mühendislik uygulanması, yeniden dağıtılması, ticari amaçla kullanılması veya başka sistemlere entegre edilmesi yasaktır.</p>
-    </div>
-    """
-else:
-    footer_html = f"""
-    <div class="footer-box">
-      <h3>ℹ️ About SwimML Pro {APP_VERSION}</h3>
-      <p><b>50 m Prediction Coach Decision Support System</b></p>
-      <p><b>Developer:</b> {DEVELOPER_EN}<br><b>Institution:</b> {UNIVERSITY_EN}</p>
-      <p>This software was developed for education, scientific research and coaching decision support. Prediction results must be interpreted together with expert coaching evaluation.</p>
-      <p><b>Copyright:</b> © 2026 {DEVELOPER_EN}. All rights reserved.</p>
-      <p>Unauthorized reproduction, copying, modification, reverse engineering, redistribution, commercial use, integration into other systems, or reuse of its source code, algorithms, AI models, user interface, graphics, data structure and report outputs is prohibited without written permission.</p>
-    </div>
-    """
-
-st.markdown(footer_html, unsafe_allow_html=True)
+render_footer(is_tr)
