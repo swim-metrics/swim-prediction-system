@@ -451,4 +451,66 @@ if st.button(button_text):
             data=pdf,
             file_name=f"{style}_{age_group}_{sex}_{report_id}_prediction_report.pdf",
             mime="application/pdf"
-        )
+# ============================================================
+# FOOTER / COPYRIGHT NOTICE
+# ============================================================
+
+st.markdown("---")
+
+if is_tr:
+    st.markdown(
+        """
+### ℹ️ SwimML Karar Destek Sistemi Hakkında
+
+**SwimML Predictor v1.0**
+
+**Geliştiren:**  
+**Tuğrul Özkadı & Araştırma Ekibi**  
+Hitit Üniversitesi  
+Spor Bilimleri Fakültesi
+
+---
+
+© 2026 Tuğrul Özkadı & Araştırma Ekibi.  
+Tüm hakları saklıdır.
+
+Bu yazılım bilimsel araştırma ve eğitim amacıyla geliştirilmiştir.
+
+Bu uygulamanın veya kaynak kodlarının yazılı izin alınmadan çoğaltılması, değiştirilmesi, yeniden dağıtılması veya ticari amaçla kullanılması yasaktır.
+
+---
+
+Bu uygulama, antrenörlük kararlarını desteklemek amacıyla geliştirilmiştir.
+
+Tahmin sonuçları, uzman antrenör değerlendirmesiyle birlikte yorumlanmalıdır. Sistem, sporcu seçimi, performans değerlendirmesi veya sağlıkla ilgili kararlar için tek başına kesin karar aracı olarak kullanılmamalıdır.
+        """
+    )
+
+else:
+    st.markdown(
+        """
+### ℹ️ About SwimML Decision Support System
+
+**SwimML Predictor v1.0**
+
+**Developed by:**  
+**Tuğrul Özkadı & Research Team**  
+Hitit University  
+Faculty of Sport Sciences
+
+---
+
+© 2026 Tuğrul Özkadı & Research Team.  
+All Rights Reserved.
+
+This software has been developed for scientific research and educational purposes.
+
+Unauthorized reproduction, modification, redistribution, or commercial use of this application or its source code is prohibited without prior written permission from the authors.
+
+---
+
+This application is intended to support coaching decisions.
+
+Prediction results should be interpreted together with expert coaching evaluation. The system should not be used as the sole decision-making tool for athlete selection, performance evaluation, or health-related decisions.
+        """
+    )
