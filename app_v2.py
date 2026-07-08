@@ -1,7 +1,7 @@
 # ============================================================
-# SwimML Predictor v2.0
-# Young Swimmer Performance Prediction & Decision Support System
-# Developed for: Tuğrul Özkadı & Research Team
+# SwimML Pro v3.0
+# Yapay Zeka Tabanli Yuzme Performans Tahmin ve Antrenor Karar Destek Sistemi
+# Streamlit App
 # ============================================================
 
 import json
@@ -14,24 +14,174 @@ import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 
-# Optional visualization
-import matplotlib.pyplot as plt
-
 # ============================================================
-# 1. FILE PATHS
+# 1. TEMEL DOSYA AYARLARI
 # ============================================================
 
 DATA_FILE = "swim_data.xlsx"
 METADATA_FILE = "model_metadata.json"
-APP_VERSION = "SwimML Predictor v2.0"
+APP_VERSION = "SwimML Pro v3.0"
 
 # ============================================================
-# 2. STROKE / STYLE DEFINITIONS
+# 2. SAYFA AYARI
+# ============================================================
+
+st.set_page_config(
+    page_title="SwimML Pro",
+    page_icon="🏊‍♂️",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ============================================================
+# 3. RENK VE CSS TASARIMI
+# ============================================================
+
+PRIMARY = "#071A2C"
+SECONDARY = "#00B8C8"
+LIGHT_BG = "#EAFBFF"
+CARD_BG = "#FFFFFF"
+GRAY_TEXT = "#6B7280"
+SUCCESS = "#10B981"
+WARNING = "#F59E0B"
+DANGER = "#EF4444"
+
+CUSTOM_CSS = f"""
+<style>
+    .main {{
+        background: linear-gradient(180deg, #F7FCFF 0%, #FFFFFF 100%);
+    }}
+    .block-container {{
+        padding-top: 1.6rem;
+        padding-bottom: 2rem;
+        max-width: 1180px;
+    }}
+    .hero-card {{
+        background: linear-gradient(135deg, {PRIMARY} 0%, #0B2F4A 55%, {SECONDARY} 100%);
+        color: white;
+        padding: 28px 30px;
+        border-radius: 24px;
+        box-shadow: 0px 12px 32px rgba(7, 26, 44, 0.18);
+        margin-bottom: 22px;
+    }}
+    .hero-title {{
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin-bottom: 6px;
+        letter-spacing: -0.03em;
+    }}
+    .hero-subtitle {{
+        font-size: 1.05rem;
+        opacity: 0.92;
+        line-height: 1.55;
+        max-width: 900px;
+    }}
+    .section-title {{
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: {PRIMARY};
+        margin-top: 18px;
+        margin-bottom: 8px;
+    }}
+    .soft-card {{
+        background-color: {CARD_BG};
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0px 6px 18px rgba(7, 26, 44, 0.06);
+        margin-bottom: 16px;
+    }}
+    .metric-card {{
+        background-color: white;
+        border-radius: 18px;
+        border: 1px solid #E5E7EB;
+        padding: 20px;
+        box-shadow: 0px 5px 16px rgba(7, 26, 44, 0.06);
+        min-height: 118px;
+    }}
+    .metric-label {{
+        color: {GRAY_TEXT};
+        font-size: 0.92rem;
+        margin-bottom: 6px;
+    }}
+    .metric-value {{
+        color: {PRIMARY};
+        font-size: 1.7rem;
+        font-weight: 800;
+    }}
+    .pill {{
+        display: inline-block;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background-color: {LIGHT_BG};
+        color: {PRIMARY};
+        font-weight: 700;
+        margin-right: 6px;
+        margin-bottom: 6px;
+        font-size: 0.9rem;
+    }}
+    .small-note {{
+        color: {GRAY_TEXT};
+        font-size: 0.92rem;
+        line-height: 1.5;
+    }}
+    .warning-box {{
+        background-color: #FFF7ED;
+        border-left: 5px solid {WARNING};
+        padding: 13px 15px;
+        border-radius: 12px;
+        color: #7C2D12;
+        margin-top: 12px;
+    }}
+    .success-box {{
+        background-color: #ECFDF5;
+        border-left: 5px solid {SUCCESS};
+        padding: 13px 15px;
+        border-radius: 12px;
+        color: #064E3B;
+        margin-top: 12px;
+    }}
+    .danger-box {{
+        background-color: #FEF2F2;
+        border-left: 5px solid {DANGER};
+        padding: 13px 15px;
+        border-radius: 12px;
+        color: #7F1D1D;
+        margin-top: 12px;
+    }}
+    div.stButton > button:first-child {{
+        background: linear-gradient(135deg, {PRIMARY} 0%, {SECONDARY} 100%);
+        color: white;
+        border: none;
+        border-radius: 14px;
+        padding: 0.82rem 1.2rem;
+        font-weight: 800;
+        font-size: 1.05rem;
+        width: 100%;
+    }}
+    div.stDownloadButton > button:first-child {{
+        border-radius: 14px;
+        padding: 0.72rem 1rem;
+        font-weight: 800;
+        width: 100%;
+    }}
+    @media (max-width: 768px) {{
+        .hero-title {{ font-size: 1.55rem; }}
+        .hero-subtitle {{ font-size: 0.95rem; }}
+        .hero-card {{ padding: 20px 18px; border-radius: 18px; }}
+        .metric-value {{ font-size: 1.35rem; }}
+    }}
+</style>
+"""
+
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+# ============================================================
+# 4. SÖZLÜKLER VE ETİKETLER
 # ============================================================
 
 STYLE_TR = {
@@ -48,14 +198,20 @@ STYLE_EN = {
     "butterfly": "50 m Butterfly",
 }
 
-SEX_MAP_TR = {"Kadın": "female", "Erkek": "male"}
-SEX_MAP_EN = {"Female": "female", "Male": "male"}
+SEX_TR = {"female": "Kadın", "male": "Erkek"}
+SEX_EN = {"female": "Female", "male": "Male"}
 
-AGE_GROUPS = ["12_13", "14_15", "16_17"]
+AGE_GROUP_LABEL_TR = {
+    "12_13": "12–13 yaş",
+    "14_15": "14–15 yaş",
+    "16_17": "16–17 yaş",
+}
 
-# ============================================================
-# 3. FEATURE LABELS
-# ============================================================
+AGE_GROUP_LABEL_EN = {
+    "12_13": "12–13 years",
+    "14_15": "14–15 years",
+    "16_17": "16–17 years",
+}
 
 FEATURE_LABELS_TR = {
     "age": "Yaş",
@@ -104,46 +260,81 @@ FEATURE_LABELS_TR = {
 
 FEATURE_LABELS_EN = {k: k.replace("_", " ").title() for k in FEATURE_LABELS_TR.keys()}
 
-# ============================================================
-# 4. FEATURE GROUPS FOR COACHING INTERPRETATION
-# ============================================================
-
 FEATURE_GROUPS = {
-    "Antropometrik Profil": [
-        "body_height", "body_mass", "arm_span", "arm_length", "leg_length",
-        "sitting_height", "hand_length", "foot_length", "chest_girth",
-        "waist_girth", "hip_girth", "thigh_girth", "calf_girth",
-        "biacromial_breadth", "biiliac_breadth"
+    "Antropometrik Ölçümler": [
+        "age", "body_height", "body_mass", "training_age", "hand_length",
+        "arm_span", "arm_length", "leg_length", "sitting_height", "foot_length",
+        "chest_girth", "biceps_girth", "flexed_biceps_girth", "forearm_girth",
+        "thigh_girth", "calf_girth", "waist_girth", "hip_girth",
+        "biacromial_breadth", "biiliac_breadth", "elbow_breadth",
+        "wrist_breadth", "knee_breadth", "ankle_breadth",
     ],
-    "Kuvvet ve Patlayıcı Güç": [
-        "vertical_jump", "standing_long_jump", "handgrip_strength",
-        "flexed_arm_hang", "sit_ups_1min"
-    ],
-    "Sürat ve Çeviklik": [
-        "sprint_30m", "illinois_agility_test"
+    "Motorik Performans Testleri": [
+        "vertical_jump", "standing_long_jump", "flexed_arm_hang",
+        "sit_ups_1min", "illinois_agility_test", "sprint_30m", "handgrip_strength",
     ],
     "Esneklik ve Mobilite": [
         "sit_and_reach", "trunk_extension_height", "shoulder_extension_height",
-        "shoulder_mobility", "ankle_dorsiflexion_rom", "ankle_plantarflexion_rom"
+        "shoulder_mobility", "ankle_dorsiflexion_rom", "ankle_plantarflexion_rom",
     ],
     "Vücut Kompozisyonu": [
-        "body_density", "body_fat_percentage", "fat_mass", "fat_free_mass"
+        "body_density", "body_fat_percentage", "fat_mass", "fat_free_mass",
     ],
-    "Denge": [
-        "flamingo_balance_test"
-    ]
+    "Denge": ["flamingo_balance_test"],
+}
+
+FEATURE_GROUPS_EN = {
+    "Anthropometric Measurements": FEATURE_GROUPS["Antropometrik Ölçümler"],
+    "Motor Performance Tests": FEATURE_GROUPS["Motorik Performans Testleri"],
+    "Flexibility and Mobility": FEATURE_GROUPS["Esneklik ve Mobilite"],
+    "Body Composition": FEATURE_GROUPS["Vücut Kompozisyonu"],
+    "Balance": FEATURE_GROUPS["Denge"],
 }
 
 LOWER_IS_BETTER = {
-    "sprint_30m", "illinois_agility_test", "body_fat_percentage",
-    "fat_mass", "flamingo_balance_test"
+    "sprint_30m",
+    "illinois_agility_test",
+    "flamingo_balance_test",
+    "body_fat_percentage",
+    "fat_mass",
 }
 
+INTEGER_FEATURES = {"age", "sit_ups_1min"}
+
 # ============================================================
-# 5. DEFAULT VALUES
+# 5. YARDIMCI FONKSİYONLAR
 # ============================================================
 
-def get_default_value(feature: str):
+@st.cache_resource
+def load_system():
+    data_path = Path(DATA_FILE)
+    metadata_path = Path(METADATA_FILE)
+
+    if not data_path.exists():
+        st.error(f"Veri dosyası bulunamadı: {DATA_FILE}")
+        st.stop()
+
+    if not metadata_path.exists():
+        st.error(f"Metadata dosyası bulunamadı: {METADATA_FILE}")
+        st.stop()
+
+    df_local = pd.read_excel(data_path)
+    with open(metadata_path, "r", encoding="utf-8") as f:
+        metadata_local = json.load(f)
+
+    return df_local, metadata_local
+
+
+@st.cache_resource
+def load_prediction_model(model_file):
+    model_path = Path(str(model_file).replace("\\", "/"))
+    if not model_path.exists():
+        st.error(f"Model dosyası bulunamadı: {model_path}")
+        st.stop()
+    return joblib.load(model_path)
+
+
+def get_default_value(feature):
     defaults = {
         "age": 15,
         "body_height": 160.0,
@@ -190,43 +381,6 @@ def get_default_value(feature: str):
     }
     return defaults.get(feature, 0.0)
 
-# ============================================================
-# 6. DATA AND MODEL LOADING
-# ============================================================
-
-@st.cache_data
-def load_data():
-    data_path = Path(DATA_FILE)
-    metadata_path = Path(METADATA_FILE)
-
-    if not data_path.exists():
-        st.error(f"Veri dosyası bulunamadı: {DATA_FILE}")
-        st.stop()
-
-    if not metadata_path.exists():
-        st.error(f"Model metadata dosyası bulunamadı: {METADATA_FILE}")
-        st.stop()
-
-    df = pd.read_excel(data_path)
-
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        metadata = json.load(f)
-
-    return df, metadata
-
-@st.cache_resource
-def load_prediction_model(model_file):
-    model_path = Path(str(model_file).replace("\\", "/"))
-
-    if not model_path.exists():
-        st.error(f"Model dosyası bulunamadı: {model_path}")
-        st.stop()
-
-    return joblib.load(model_path)
-
-# ============================================================
-# 7. HELPER FUNCTIONS
-# ============================================================
 
 def safe_float(value, default=np.nan):
     try:
@@ -235,243 +389,143 @@ def safe_float(value, default=np.nan):
         return default
 
 
-def get_metric(model_info, key, default=None):
-    return model_info.get(key, default)
+def model_metric(model_info, key, default=None):
+    value = model_info.get(key, default)
+    if value is None:
+        return default
+    return value
 
 
-def calculate_percentile(group_data, target_col, prediction):
-    """
-    Swimming time: lower is better.
-    Percentile indicates the percentage of swimmers slower than predicted athlete.
-    """
-    if group_data.empty or target_col not in group_data.columns:
+def error_margin(model_info):
+    mae = safe_float(model_info.get("mae"), np.nan)
+    rmse = safe_float(model_info.get("rmse"), np.nan)
+    if not np.isnan(mae) and mae > 0:
+        return mae
+    if not np.isnan(rmse) and rmse > 0:
+        return rmse
+    return np.nan
+
+
+def group_filter(df_local, sex, age_group):
+    required = {"sex", "age_group"}
+    if not required.issubset(set(df_local.columns)):
+        return df_local.copy()
+    return df_local[(df_local["sex"] == sex) & (df_local["age_group"] == age_group)].copy()
+
+
+def performance_percentile(group_data, target_col, prediction):
+    if target_col not in group_data.columns or group_data.empty:
         return np.nan
-    return (group_data[target_col] > prediction).mean() * 100
-
-
-def performance_comment_tr(percentile):
-    if pd.isna(percentile):
-        return "—", "Yüzdelik hesaplanamadı"
-    if percentile >= 85:
-        return "★★★★★", "Çok yüksek performans düzeyi"
-    if percentile >= 65:
-        return "★★★★☆", "İyi performans düzeyi"
-    if percentile >= 40:
-        return "★★★☆☆", "Orta performans düzeyi"
-    return "★★☆☆☆", "Geliştirilmesi gereken performans düzeyi"
-
-
-def performance_comment_en(percentile):
-    if pd.isna(percentile):
-        return "—", "Percentile could not be calculated"
-    if percentile >= 85:
-        return "★★★★★", "Very high performance level"
-    if percentile >= 65:
-        return "★★★★☆", "Good performance level"
-    if percentile >= 40:
-        return "★★★☆☆", "Moderate performance level"
-    return "★★☆☆☆", "Performance needs improvement"
-
-
-def error_band_from_metadata(model_info):
-    """
-    Uses MAE as practical expected error band if available.
-    """
-    mae = safe_float(model_info.get("mae", np.nan))
-    rmse = safe_float(model_info.get("rmse", np.nan))
-
-    if not np.isnan(mae):
-        return mae, "MAE"
-    if not np.isnan(rmse):
-        return rmse, "RMSE"
-    return np.nan, ""
-
-
-def group_reference_stats(df, group_filter, features):
-    group_df = df[group_filter].copy()
-    stats = {}
-    for f in features:
-        if f in group_df.columns:
-            vals = pd.to_numeric(group_df[f], errors="coerce").dropna()
-            if len(vals) > 1:
-                stats[f] = {
-                    "mean": vals.mean(),
-                    "std": vals.std(ddof=1),
-                    "min": vals.min(),
-                    "max": vals.max(),
-                }
-    return stats
-
-
-def z_score(value, mean, std):
-    if pd.isna(value) or pd.isna(mean) or pd.isna(std) or std == 0:
+    values = pd.to_numeric(group_data[target_col], errors="coerce").dropna()
+    if len(values) == 0:
         return np.nan
-    return (value - mean) / std
+    return float((values > prediction).mean() * 100)
 
 
-def feature_profile(inputs, ref_stats):
+def performance_level_tr(percentile):
+    if np.isnan(percentile):
+        return "☆☆☆☆☆", "Referans yetersiz", "Grup verisi yetersiz olduğu için yüzdelik yorum sınırlıdır."
+    if percentile >= 85:
+        return "★★★★★", "Çok yüksek performans düzeyi", "Sporcu referans grubunun oldukça üzerinde bir tahmin profili göstermektedir."
+    if percentile >= 65:
+        return "★★★★☆", "İyi performans düzeyi", "Sporcu referans grubuna göre güçlü bir performans profili göstermektedir."
+    if percentile >= 40:
+        return "★★★☆☆", "Orta performans düzeyi", "Sporcu referans grubuna yakın bir performans profili göstermektedir."
+    return "★★☆☆☆", "Geliştirilebilir performans düzeyi", "Sporcunun performans göstergeleri antrenman planlamasıyla desteklenmelidir."
+
+
+def performance_level_en(percentile):
+    if np.isnan(percentile):
+        return "☆☆☆☆☆", "Insufficient reference", "Percentile interpretation is limited because reference data are insufficient."
+    if percentile >= 85:
+        return "★★★★★", "Very high performance level", "The athlete shows a prediction profile clearly above the reference group."
+    if percentile >= 65:
+        return "★★★★☆", "Good performance level", "The athlete shows a strong performance profile compared with the reference group."
+    if percentile >= 40:
+        return "★★★☆☆", "Moderate performance level", "The athlete shows a performance profile close to the reference group."
+    return "★★☆☆☆", "Developmental performance level", "The athlete's performance indicators should be supported by training planning."
+
+
+def feature_percentile(feature, value, group_data):
+    if feature not in group_data.columns or group_data.empty:
+        return np.nan
+    ref = pd.to_numeric(group_data[feature], errors="coerce").dropna()
+    if len(ref) < 3:
+        return np.nan
+    value = safe_float(value, np.nan)
+    if np.isnan(value):
+        return np.nan
+    if feature in LOWER_IS_BETTER:
+        return float((ref > value).mean() * 100)
+    return float((ref < value).mean() * 100)
+
+
+def group_profile_scores(inputs, group_data, feature_groups):
     rows = []
-    for f, value in inputs.items():
-        if f not in ref_stats:
-            continue
-        mean = ref_stats[f]["mean"]
-        std = ref_stats[f]["std"]
-        z = z_score(value, mean, std)
-        adjusted_z = -z if f in LOWER_IS_BETTER else z
-        rows.append({
-            "feature": f,
-            "value": value,
-            "group_mean": mean,
-            "z": z,
-            "adjusted_z": adjusted_z,
-        })
+    for group_name, feats in feature_groups.items():
+        available = [f for f in feats if f in inputs]
+        scores = [feature_percentile(f, inputs[f], group_data) for f in available]
+        scores = [s for s in scores if not np.isnan(s)]
+        score = float(np.mean(scores)) if scores else np.nan
+        rows.append({"Alan": group_name, "Profil Puanı": score})
     return pd.DataFrame(rows)
 
 
-def classify_feature_tr(adjusted_z):
-    if pd.isna(adjusted_z):
-        return "Yorumlanamadı"
-    if adjusted_z >= 0.75:
-        return "Güçlü yön"
-    if adjusted_z <= -0.75:
-        return "Gelişim alanı"
-    return "Grup ortalamasına yakın"
+def strong_weak_features(inputs, group_data, labels, top_n=5):
+    scored = []
+    for feature, value in inputs.items():
+        pct = feature_percentile(feature, value, group_data)
+        if not np.isnan(pct):
+            scored.append((feature, labels.get(feature, feature), pct))
+    if not scored:
+        return [], []
+    scored_sorted = sorted(scored, key=lambda x: x[2], reverse=True)
+    strong = scored_sorted[:top_n]
+    weak = sorted(scored, key=lambda x: x[2])[:top_n]
+    return strong, weak
 
 
-def classify_feature_en(adjusted_z):
-    if pd.isna(adjusted_z):
-        return "Not interpreted"
-    if adjusted_z >= 0.75:
-        return "Strength"
-    if adjusted_z <= -0.75:
-        return "Development area"
-    return "Close to group mean"
-
-
-def group_scores(profile_df):
-    scores = {}
-    for group_name, group_features in FEATURE_GROUPS.items():
-        sub = profile_df[profile_df["feature"].isin(group_features)]
-        if not sub.empty:
-            scores[group_name] = sub["adjusted_z"].mean()
-    return scores
-
-
-def coaching_summary_tr(percentile, difference, error_band, strongest, weakest):
-    lines = []
-
-    if not pd.isna(percentile):
-        if percentile >= 85:
-            lines.append("Sporcu, kendi yaş grubu ve cinsiyet grubuna göre üst düzey performans potansiyeli göstermektedir.")
-        elif percentile >= 65:
-            lines.append("Sporcu, grup ortalamasının üzerinde değerlendirilebilecek olumlu bir performans profili göstermektedir.")
-        elif percentile >= 40:
-            lines.append("Sporcu, grup ortalamasına yakın bir performans profili göstermektedir; gelişim için teknik ve fiziksel destek önerilir.")
+def model_reliability_text_tr(model_info):
+    r2 = safe_float(model_info.get("r2"), np.nan)
+    mae = safe_float(model_info.get("mae"), np.nan)
+    if not np.isnan(r2):
+        if r2 >= 0.75:
+            level = "yüksek"
+        elif r2 >= 0.50:
+            level = "orta-yüksek"
+        elif r2 >= 0.30:
+            level = "orta"
         else:
-            lines.append("Sporcunun performans göstergeleri geliştirmeye açıktır; antrenman planlamasında temel fiziksel ve teknik bileşenler birlikte ele alınmalıdır.")
+            level = "sınırlı"
+        return f"Modelin açıklayıcılık düzeyi {level} düzeydedir. Tahminler yaklaşık hata payı dikkate alınarak yorumlanmalıdır."
+    if not np.isnan(mae):
+        return f"Model için ortalama mutlak hata yaklaşık {mae:.2f} sn olarak raporlanmıştır."
+    return "Model güvenilirlik bilgileri metadata dosyasındaki mevcut değerlere göre sınırlı düzeyde gösterilmektedir."
 
-    if not pd.isna(difference):
-        if difference < 0:
-            lines.append(f"Tahmini derece grup ortalamasından yaklaşık {abs(difference):.2f} sn daha hızlıdır.")
+
+def model_reliability_text_en(model_info):
+    r2 = safe_float(model_info.get("r2"), np.nan)
+    mae = safe_float(model_info.get("mae"), np.nan)
+    if not np.isnan(r2):
+        if r2 >= 0.75:
+            level = "high"
+        elif r2 >= 0.50:
+            level = "moderate-high"
+        elif r2 >= 0.30:
+            level = "moderate"
         else:
-            lines.append(f"Tahmini derece grup ortalamasından yaklaşık {difference:.2f} sn daha yavaştır.")
-
-    if not pd.isna(error_band):
-        lines.append(f"Tahmin sonucu yaklaşık ±{error_band:.2f} sn model hata payı ile yorumlanmalıdır.")
-
-    if strongest:
-        lines.append(f"Öne çıkan güçlü alan: {strongest}.")
-    if weakest:
-        lines.append(f"Öncelikli gelişim alanı: {weakest}.")
-
-    lines.append("Bu çıktı tek başına seçme veya kulvar tahsisi kararı değildir; antrenör gözlemi, teknik analiz ve yarış performansı ile birlikte değerlendirilmelidir.")
-    return lines
+            level = "limited"
+        return f"The model shows a {level} explanatory level. Predictions should be interpreted with the error margin."
+    if not np.isnan(mae):
+        return f"The model reports an approximate mean absolute error of {mae:.2f} s."
+    return "Model reliability information is displayed based on the available metadata."
 
 
-def coaching_summary_en(percentile, difference, error_band, strongest, weakest):
-    lines = []
-
-    if not pd.isna(percentile):
-        if percentile >= 85:
-            lines.append("The swimmer demonstrates a high-level performance potential within the age-sex group.")
-        elif percentile >= 65:
-            lines.append("The swimmer shows a positive performance profile above the group average.")
-        elif percentile >= 40:
-            lines.append("The swimmer is close to the group average; technical and physical development support is recommended.")
-        else:
-            lines.append("The swimmer's performance indicators are open to development; technical and physical components should be addressed together.")
-
-    if not pd.isna(difference):
-        if difference < 0:
-            lines.append(f"The predicted time is approximately {abs(difference):.2f} s faster than the group mean.")
-        else:
-            lines.append(f"The predicted time is approximately {difference:.2f} s slower than the group mean.")
-
-    if not pd.isna(error_band):
-        lines.append(f"The prediction should be interpreted with an approximate ±{error_band:.2f} s model error band.")
-
-    if strongest:
-        lines.append(f"Main strength area: {strongest}.")
-    if weakest:
-        lines.append(f"Priority development area: {weakest}.")
-
-    lines.append("This output is not a stand-alone selection or lane allocation decision; it should be evaluated together with coach observation, technical analysis and race performance.")
-    return lines
-
-# ============================================================
-# 8. VISUALIZATION
-# ============================================================
-
-def create_radar_chart(group_score_dict):
-    if not group_score_dict:
-        return None
-
-    labels = list(group_score_dict.keys())
-    values = [group_score_dict[k] for k in labels]
-
-    # Convert z-score style values to 0-100 practical display scale
-    display_values = []
-    for v in values:
-        if pd.isna(v):
-            display_values.append(50)
-        else:
-            display_values.append(float(np.clip(50 + v * 15, 0, 100)))
-
-    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-    display_values += display_values[:1]
-    angles += angles[:1]
-
-    fig = plt.figure(figsize=(7, 7))
-    ax = plt.subplot(111, polar=True)
-    ax.plot(angles, display_values, linewidth=2)
-    ax.fill(angles, display_values, alpha=0.20)
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=8)
-    ax.set_yticks([20, 40, 60, 80, 100])
-    ax.set_ylim(0, 100)
-    ax.set_title("Sporcu Performans Profili", fontsize=13, pad=20)
-    fig.tight_layout()
-
-    buffer = BytesIO()
-    fig.savefig(buffer, format="png", dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    buffer.seek(0)
-    return buffer
-
-# ============================================================
-# 9. PDF REPORT
-# ============================================================
-
-def pdf_safe(text):
-    """
-    ReportLab default Helvetica does not fully support Turkish.
-    This keeps the PDF stable by converting Turkish characters.
-    """
+def pdf_clean(text):
     replacements = {
-        "ç": "c", "Ç": "C", "ğ": "g", "Ğ": "G",
-        "ı": "i", "İ": "I", "ö": "o", "Ö": "O",
-        "ş": "s", "Ş": "S", "ü": "u", "Ü": "U",
-        "²": "2", "±": "+/-",
+        "ç": "c", "Ç": "C", "ğ": "g", "Ğ": "G", "ı": "i", "İ": "I",
+        "ö": "o", "Ö": "O", "ş": "s", "Ş": "S", "ü": "u", "Ü": "U",
+        "–": "-", "—": "-", "²": "2", "±": "+/-", "★": "*", "☆": "-",
     }
     text = str(text)
     for old, new in replacements.items():
@@ -479,109 +533,269 @@ def pdf_safe(text):
     return text
 
 
-def create_pdf_report(title, sections, report_id):
+def create_pdf_report(
+    is_tr,
+    report_id,
+    athlete_name,
+    club_name,
+    coach_name,
+    style_display,
+    sex_display,
+    age_group_display,
+    prediction,
+    group_mean,
+    difference,
+    percentile,
+    error_value,
+    comment,
+    ai_comment,
+    strong,
+    weak,
+    profile_df,
+    model_info,
+):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    x = 2 * cm
-    y = height - 2 * cm
+    def draw_header():
+        c.setFillColorRGB(0.027, 0.102, 0.173)
+        c.rect(0, height - 3.2 * cm, width, 3.2 * cm, fill=True, stroke=False)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 16)
+        title = "SwimML Pro Performans Raporu" if is_tr else "SwimML Pro Performance Report"
+        c.drawString(1.5 * cm, height - 1.25 * cm, pdf_clean(title))
+        c.setFont("Helvetica", 9)
+        c.drawString(1.5 * cm, height - 1.85 * cm, pdf_clean(f"{APP_VERSION} | Report ID: {report_id}"))
+        c.drawString(1.5 * cm, height - 2.35 * cm, pdf_clean(datetime.now().strftime("%d.%m.%Y %H:%M")))
 
     def new_page():
-        nonlocal y
         c.showPage()
-        y = height - 2 * cm
-        c.setFont("Helvetica", 9)
+        draw_header()
+        return height - 4.2 * cm
 
-    c.setFont("Helvetica-Bold", 15)
-    c.drawString(x, y, pdf_safe(title))
-    y -= 0.7 * cm
-
-    c.setFont("Helvetica", 9)
-    c.drawString(x, y, pdf_safe(f"Rapor No / Report ID: {report_id}"))
-    y -= 0.5 * cm
-    c.drawString(x, y, pdf_safe(f"Olusturma Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}"))
-    y -= 0.8 * cm
-
-    for section_title, lines in sections:
+    def section(y, text):
         if y < 3 * cm:
-            new_page()
+            y = new_page()
+        c.setFillColorRGB(0.0, 0.55, 0.62)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(1.5 * cm, y, pdf_clean(text))
+        return y - 0.55 * cm
 
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(x, y, pdf_safe(section_title))
-        y -= 0.45 * cm
+    def line(y, text, size=9.5):
+        if y < 2.3 * cm:
+            y = new_page()
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica", size)
+        c.drawString(1.7 * cm, y, pdf_clean(text)[:115])
+        return y - 0.42 * cm
 
-        c.setFont("Helvetica", 9)
-        for line in lines:
-            if y < 2 * cm:
-                new_page()
-                c.setFont("Helvetica", 9)
+    draw_header()
+    y = height - 4.2 * cm
 
-            text = pdf_safe(line)
-            max_chars = 105
-            chunks = [text[i:i + max_chars] for i in range(0, len(text), max_chars)] or [""]
-            for chunk in chunks:
-                c.drawString(x, y, chunk)
-                y -= 0.38 * cm
-        y -= 0.25 * cm
+    y = section(y, "1. Sporcu ve Model Bilgileri" if is_tr else "1. Athlete and Model Information")
+    y = line(y, f"Ad Soyad / Athlete: {athlete_name or '-'}")
+    y = line(y, f"Kulup / Club: {club_name or '-'}")
+    y = line(y, f"Antrenor / Coach: {coach_name or '-'}")
+    y = line(y, f"Model: {style_display} | {sex_display} | {age_group_display}")
 
-    c.setFont("Helvetica-Oblique", 8)
-    footer = f"{APP_VERSION} | Bilimsel arastirma ve antrenorluk karar destek amaciyla gelistirilmistir."
-    c.drawString(x, 1.2 * cm, pdf_safe(footer))
+    y = section(y, "2. Tahmin Sonucu" if is_tr else "2. Prediction Result")
+    y = line(y, f"Tahmini Derece / Predicted Time: {prediction:.2f} sn")
+    if not np.isnan(group_mean):
+        y = line(y, f"Grup Ortalamasi / Group Mean: {group_mean:.2f} sn")
+    if not np.isnan(difference):
+        y = line(y, f"Fark / Difference: {difference:.2f} sn")
+    if not np.isnan(percentile):
+        y = line(y, f"Performans Yuzdeligi / Performance Percentile: %{percentile:.1f}")
+    if not np.isnan(error_value):
+        y = line(y, f"Tahmin Hata Araligi / Error Margin: +/- {error_value:.2f} sn")
+    y = line(y, f"Yorum / Comment: {comment}")
+
+    y = section(y, "3. Karar Destek Yorumu" if is_tr else "3. Decision Support Comment")
+    for chunk in [ai_comment[i:i+105] for i in range(0, len(ai_comment), 105)]:
+        y = line(y, chunk)
+
+    y = section(y, "4. Guclu Alanlar" if is_tr else "4. Strong Areas")
+    if strong:
+        for _, label, pct in strong:
+            y = line(y, f"- {label}: %{pct:.1f}")
+    else:
+        y = line(y, "- Referans veri yetersiz" if is_tr else "- Insufficient reference data")
+
+    y = section(y, "5. Gelistirilebilir Alanlar" if is_tr else "5. Development Areas")
+    if weak:
+        for _, label, pct in weak:
+            y = line(y, f"- {label}: %{pct:.1f}")
+    else:
+        y = line(y, "- Referans veri yetersiz" if is_tr else "- Insufficient reference data")
+
+    y = section(y, "6. Profil Alanlari" if is_tr else "6. Profile Areas")
+    if profile_df is not None and not profile_df.empty:
+        for _, row in profile_df.iterrows():
+            score = row["Profil Puanı"]
+            score_text = "-" if np.isnan(score) else f"%{score:.1f}"
+            y = line(y, f"- {row['Alan']}: {score_text}")
+
+    y = section(y, "7. Model Bilgileri" if is_tr else "7. Model Information")
+    metric_keys = ["model", "n_total", "n_train", "n_test", "mae", "rmse", "mape", "r2", "pearson_r", "cv_r2", "cv_std"]
+    for key in metric_keys:
+        if key in model_info:
+            y = line(y, f"{key}: {model_info.get(key)}")
+
+    y = section(y, "8. Bilimsel Uyari" if is_tr else "8. Scientific Notice")
+    notice = (
+        "Bu sistem antrenorluk kararlarini desteklemek amaciyla gelistirilmistir. Tahmin sonuclari tek basina kesin secim veya performans karari olarak kullanilmamalidir."
+        if is_tr else
+        "This system is designed to support coaching decisions. Prediction results should not be used as the sole basis for selection or performance decisions."
+    )
+    for chunk in [notice[i:i+105] for i in range(0, len(notice), 105)]:
+        y = line(y, chunk)
 
     c.save()
     buffer.seek(0)
     return buffer
 
+
+def metric_card(label, value, note=""):
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+            <div class="small-note">{note}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_list(title, items, is_strong=True):
+    box_class = "success-box" if is_strong else "warning-box"
+    if not items:
+        st.markdown(
+            f"<div class='{box_class}'><b>{title}</b><br>Referans veri yetersiz.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+    lines = "<br>".join([f"• {label}: <b>%{pct:.1f}</b>" for _, label, pct in items])
+    st.markdown(
+        f"<div class='{box_class}'><b>{title}</b><br>{lines}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_model_metrics(model_info, is_tr):
+    labels_tr = {
+        "model": "Model",
+        "n_total": "Toplam Veri",
+        "n_train": "Eğitim Verisi",
+        "n_test": "Bağımsız Test Verisi",
+        "mae": "MAE",
+        "rmse": "RMSE",
+        "mape": "MAPE (%)",
+        "r2": "R²",
+        "pearson_r": "Pearson r",
+        "cv_r2": "CV R²",
+        "cv_std": "CV SS",
+        "min_error": "Minimum Hata",
+        "max_error": "Maksimum Hata",
+    }
+    labels_en = {
+        "model": "Model",
+        "n_total": "Total Sample",
+        "n_train": "Training Sample",
+        "n_test": "Independent Test Sample",
+        "mae": "MAE",
+        "rmse": "RMSE",
+        "mape": "MAPE (%)",
+        "r2": "R²",
+        "pearson_r": "Pearson r",
+        "cv_r2": "CV R²",
+        "cv_std": "CV SD",
+        "min_error": "Minimum Error",
+        "max_error": "Maximum Error",
+    }
+    labels = labels_tr if is_tr else labels_en
+    keys = ["model", "n_total", "n_train", "n_test", "mae", "rmse", "mape", "r2", "pearson_r", "cv_r2", "cv_std", "min_error", "max_error"]
+    rows = []
+    for key in keys:
+        if key in model_info:
+            rows.append({"Gösterge" if is_tr else "Metric": labels[key], "Değer" if is_tr else "Value": model_info[key]})
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("Model metadata bilgisi sınırlı." if is_tr else "Limited model metadata information.")
+
 # ============================================================
-# 10. STREAMLIT APP CONFIGURATION
+# 6. VERİ VE METADATA YÜKLEME
 # ============================================================
 
-st.set_page_config(
-    page_title="SwimML Predictor v2.0",
-    page_icon="🏊",
-    layout="wide",
-    initial_sidebar_state="expanded"
+df, metadata = load_system()
+
+# ============================================================
+# 7. ANA EKRAN - DİL SEÇİMİ
+# ============================================================
+
+language = st.radio(
+    "Dil / Language",
+    ["🇹🇷 Türkçe", "🇺🇸 English"],
+    horizontal=True,
+    key="language_selector",
+)
+is_tr = language.startswith("🇹🇷")
+
+if is_tr:
+    hero_title = "🏊‍♂️ SwimML Pro"
+    hero_subtitle = "Yapay zekâ tabanlı yüzme performans tahmin ve antrenör karar destek sistemi. 12–17 yaş genç yüzücülerde 50 m stil performansını antropometrik, motorik, esneklik ve vücut kompozisyonu ölçümlerine göre analiz eder."
+else:
+    hero_title = "🏊‍♂️ SwimML Pro"
+    hero_subtitle = "AI-based swimming performance prediction and coaching decision support system. It analyzes 50 m stroke performance in 12–17-year-old swimmers using anthropometric, motor, flexibility, and body composition measurements."
+
+st.markdown(
+    f"""
+    <div class="hero-card">
+        <div class="hero-title">{hero_title}</div>
+        <div class="hero-subtitle">{hero_subtitle}</div>
+        <div style="margin-top:14px;">
+            <span class="pill">{APP_VERSION}</span>
+            <span class="pill">50 m Prediction</span>
+            <span class="pill">Coach Decision Support</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 # ============================================================
-# 11. MAIN APP
+# 8. MODEL SEÇİMİ
 # ============================================================
 
-df, metadata = load_data()
+st.markdown(f"<div class='section-title'>{'Model Seçimi' if is_tr else 'Model Selection'}</div>", unsafe_allow_html=True)
 
-with st.sidebar:
-    st.title("🏊 SwimML")
-    language = st.radio("Dil / Language", ["🇹🇷 Türkçe", "🇺🇸 English"], index=0)
-    is_tr = language.startswith("🇹🇷")
+style_dict = STYLE_TR if is_tr else STYLE_EN
+sex_dict = SEX_TR if is_tr else SEX_EN
+age_dict = AGE_GROUP_LABEL_TR if is_tr else AGE_GROUP_LABEL_EN
 
-    st.markdown("---")
+col_style, col_sex, col_age = st.columns(3)
 
-    if is_tr:
-        st.subheader("Model Seçimi")
-        style_display = st.selectbox("Stil", list(STYLE_TR.values()))
-        style = {v: k for k, v in STYLE_TR.items()}[style_display]
-        sex_display = st.selectbox("Cinsiyet", list(SEX_MAP_TR.keys()))
-        sex = SEX_MAP_TR[sex_display]
-        age_group = st.selectbox("Yaş Grubu", AGE_GROUPS)
-    else:
-        st.subheader("Model Selection")
-        style_display = st.selectbox("Stroke", list(STYLE_EN.values()))
-        style = {v: k for k, v in STYLE_EN.items()}[style_display]
-        sex_display = st.selectbox("Sex", list(SEX_MAP_EN.keys()))
-        sex = SEX_MAP_EN[sex_display]
-        age_group = st.selectbox("Age Group", AGE_GROUPS)
+with col_style:
+    style_display = st.selectbox("Stil" if is_tr else "Stroke", list(style_dict.values()))
+    style = {v: k for k, v in style_dict.items()}[style_display]
 
-    model_key = f"{style}_{age_group}_{sex}"
-    st.caption(("Model anahtarı: " if is_tr else "Model key: ") + model_key)
+with col_sex:
+    sex_display = st.selectbox("Cinsiyet" if is_tr else "Sex", list(sex_dict.values()))
+    sex = {v: k for k, v in sex_dict.items()}[sex_display]
 
-# Header
-if is_tr:
-    st.title("🏊 SwimML Predictor v2.0")
-    st.markdown("### Genç Yüzücülerde Stil, Yaş ve Cinsiyete Özgü Performans Tahmin ve Karar Destek Sistemi")
-else:
-    st.title("🏊 SwimML Predictor v2.0")
-    st.markdown("### Stroke-, Age- and Sex-Specific Performance Prediction and Decision Support System for Young Swimmers")
+with col_age:
+    age_group_display = st.selectbox("Yaş Grubu" if is_tr else "Age Group", list(age_dict.values()))
+    age_group = {v: k for k, v in age_dict.items()}[age_group_display]
+
+model_key = f"{style}_{age_group}_{sex}"
+
+st.markdown(
+    f"<div class='soft-card'><b>{'Seçilen analiz grubu' if is_tr else 'Selected analysis group'}:</b> {style_display} / {sex_display} / {age_group_display}</div>",
+    unsafe_allow_html=True,
+)
 
 if model_key not in metadata:
     st.error("Bu seçim için kayıtlı model bulunamadı." if is_tr else "No registered model was found for this selection.")
@@ -589,330 +803,273 @@ if model_key not in metadata:
 
 model_info = metadata[model_key]
 model = load_prediction_model(model_info["model_file"])
-features = model_info.get("features_en", [])
+features = model_info.get("features_en", model_info.get("features", []))
 target_col = model_info.get("target")
 
 if not features:
-    st.error("Metadata içinde modele ait değişken listesi bulunamadı." if is_tr else "Feature list could not be found in metadata.")
+    st.error("Metadata içinde model değişkenleri bulunamadı." if is_tr else "Model features were not found in metadata.")
+    st.stop()
+
+if not target_col:
+    st.error("Metadata içinde hedef değişken adı bulunamadı." if is_tr else "Target variable was not found in metadata.")
     st.stop()
 
 # ============================================================
-# 12. ATHLETE FORM
+# 9. SPORCU BİLGİLERİ - SADECE 3 ALAN
 # ============================================================
 
-st.markdown("---")
-
-if is_tr:
-    st.subheader("👤 Sporcu Bilgileri")
-else:
-    st.subheader("👤 Athlete Information")
+st.markdown(f"<div class='section-title'>{'Sporcu Bilgileri' if is_tr else 'Athlete Information'}</div>", unsafe_allow_html=True)
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
-    athlete_name = st.text_input("Ad Soyad" if is_tr else "Athlete Name", value="")
+    athlete_name = st.text_input("Ad Soyad" if is_tr else "Athlete Full Name", value="")
 with col_b:
     club_name = st.text_input("Kulüp" if is_tr else "Club", value="")
 with col_c:
-    coach_name = st.text_input("Antrenör" if is_tr else "Coach", value="")
+    coach_name = st.text_input("Antrenör Ad Soyad" if is_tr else "Coach Full Name", value="")
 
-st.markdown("---")
+# ============================================================
+# 10. ÖLÇÜMLER
+# ============================================================
 
-if is_tr:
-    st.subheader("📌 Modele Girilecek Ölçümler")
-    st.info(f"Bu modelde kullanılan değişken sayısı: {len(features)}")
-else:
-    st.subheader("📌 Required Measurements")
-    st.info(f"Number of variables used in this model: {len(features)}")
+st.markdown(f"<div class='section-title'>{'Ölçüm Girişi' if is_tr else 'Measurement Entry'}</div>", unsafe_allow_html=True)
+
+st.markdown(
+    f"<div class='small-note'>{'Bu model için kullanılan değişken sayısı' if is_tr else 'Number of variables used in this model'}: <b>{len(features)}</b></div>",
+    unsafe_allow_html=True,
+)
 
 inputs = {}
+labels = FEATURE_LABELS_TR if is_tr else FEATURE_LABELS_EN
+feature_groups_current = FEATURE_GROUPS if is_tr else FEATURE_GROUPS_EN
 
-# Dynamic input layout
-cols = st.columns(3)
-for i, feature in enumerate(features):
-    label = FEATURE_LABELS_TR.get(feature, feature) if is_tr else FEATURE_LABELS_EN.get(feature, feature)
-    default = get_default_value(feature)
+used_features_set = set(features)
+shown_features = set()
 
-    with cols[i % 3]:
-        if feature in ["age", "sit_ups_1min"]:
-            inputs[feature] = st.number_input(label, min_value=0, max_value=300, value=int(default), step=1)
-        else:
-            inputs[feature] = st.number_input(label, min_value=0.0, max_value=500.0, value=float(default), step=0.1)
+for group_name, group_features in feature_groups_current.items():
+    group_used = [f for f in group_features if f in used_features_set]
+    if not group_used:
+        continue
+
+    with st.expander(group_name, expanded=(group_name in ["Motorik Performans Testleri", "Motor Performance Tests"])):
+        cols = st.columns(3)
+        for idx, feature in enumerate(group_used):
+            shown_features.add(feature)
+            label = labels.get(feature, feature)
+            default_value = get_default_value(feature)
+            with cols[idx % 3]:
+                if feature in INTEGER_FEATURES:
+                    inputs[feature] = st.number_input(
+                        label,
+                        min_value=0,
+                        max_value=300,
+                        value=int(default_value),
+                        step=1,
+                        key=f"input_{feature}",
+                    )
+                else:
+                    inputs[feature] = st.number_input(
+                        label,
+                        min_value=0.0,
+                        max_value=500.0,
+                        value=float(default_value),
+                        step=0.1,
+                        key=f"input_{feature}",
+                    )
+
+remaining_features = [f for f in features if f not in shown_features]
+if remaining_features:
+    with st.expander("Diğer Ölçümler" if is_tr else "Other Measurements", expanded=False):
+        cols = st.columns(3)
+        for idx, feature in enumerate(remaining_features):
+            label = labels.get(feature, feature)
+            default_value = get_default_value(feature)
+            with cols[idx % 3]:
+                if feature in INTEGER_FEATURES:
+                    inputs[feature] = st.number_input(label, min_value=0, max_value=300, value=int(default_value), step=1, key=f"input_{feature}")
+                else:
+                    inputs[feature] = st.number_input(label, min_value=0.0, max_value=500.0, value=float(default_value), step=0.1, key=f"input_{feature}")
+
+# Modelin beklediği sırayı koru
+inputs = {feature: inputs[feature] for feature in features if feature in inputs}
 
 # ============================================================
-# 13. PREDICTION
+# 11. TAHMİN VE RAPOR
 # ============================================================
 
 st.markdown("---")
-button_text = "🏁 Tahmin Et ve Raporla" if is_tr else "🏁 Predict and Report"
+button_label = "🤖 Tahmin Et ve Karar Destek Raporu Oluştur" if is_tr else "🤖 Predict and Generate Decision Support Report"
 
-if st.button(button_text, use_container_width=True):
+if st.button(button_label):
     report_id = f"SWIM-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+    input_df = pd.DataFrame([inputs], columns=features)
 
-    input_df = pd.DataFrame([inputs])
-    input_df = input_df[features]
+    try:
+        prediction = float(model.predict(input_df)[0])
+    except Exception as exc:
+        st.error(f"Tahmin sırasında hata oluştu: {exc}" if is_tr else f"Prediction error: {exc}")
+        st.stop()
 
-    prediction = float(model.predict(input_df)[0])
-
-    group_filter = (df["sex"] == sex) & (df["age_group"] == age_group)
-    group_data = df[group_filter].copy()
+    group_data = group_filter(df, sex, age_group)
 
     if target_col in group_data.columns and not group_data.empty:
-        group_mean = pd.to_numeric(group_data[target_col], errors="coerce").mean()
-        difference = prediction - group_mean
-        percentile = calculate_percentile(group_data, target_col, prediction)
+        target_values = pd.to_numeric(group_data[target_col], errors="coerce").dropna()
+        group_mean = float(target_values.mean()) if len(target_values) else np.nan
     else:
         group_mean = np.nan
-        difference = np.nan
-        percentile = np.nan
 
-    error_band, error_source = error_band_from_metadata(model_info)
+    difference = prediction - group_mean if not np.isnan(group_mean) else np.nan
+    percentile = performance_percentile(group_data, target_col, prediction)
+    err = error_margin(model_info)
 
     if is_tr:
-        stars, comment = performance_comment_tr(percentile)
+        stars, level_text, level_explanation = performance_level_tr(percentile)
+        reliability_text = model_reliability_text_tr(model_info)
+        if not np.isnan(difference):
+            if difference < 0:
+                comparison_text = f"Sporcu seçilen referans grubundan yaklaşık {abs(difference):.2f} sn daha hızlı görünmektedir."
+            else:
+                comparison_text = f"Sporcu seçilen referans grubundan yaklaşık {difference:.2f} sn daha yavaş görünmektedir."
+        else:
+            comparison_text = "Grup ortalaması hesaplanamadığı için fark yorumu sınırlıdır."
+        ai_comment = f"{level_explanation} {comparison_text} {reliability_text} Bu sonuç, antrenör gözlemi ve teknik değerlendirme ile birlikte yorumlanmalıdır."
     else:
-        stars, comment = performance_comment_en(percentile)
+        stars, level_text, level_explanation = performance_level_en(percentile)
+        reliability_text = model_reliability_text_en(model_info)
+        if not np.isnan(difference):
+            if difference < 0:
+                comparison_text = f"The athlete appears approximately {abs(difference):.2f} s faster than the selected reference group."
+            else:
+                comparison_text = f"The athlete appears approximately {difference:.2f} s slower than the selected reference group."
+        else:
+            comparison_text = "Difference interpretation is limited because the group mean could not be calculated."
+        ai_comment = f"{level_explanation} {comparison_text} {reliability_text} This result should be interpreted together with coaching observation and technical assessment."
 
-    # Reference-based athlete profile
-    ref_stats = group_reference_stats(df, group_filter, features)
-    profile_df = feature_profile(inputs, ref_stats)
-    profile_df["interpretation"] = profile_df["adjusted_z"].apply(classify_feature_tr if is_tr else classify_feature_en)
+    profile_df = group_profile_scores(inputs, group_data, feature_groups_current)
+    strong, weak = strong_weak_features(inputs, group_data, labels, top_n=5)
 
-    score_dict = group_scores(profile_df)
-    strongest = None
-    weakest = None
-    if score_dict:
-        strongest = max(score_dict, key=score_dict.get)
-        weakest = min(score_dict, key=score_dict.get)
+    # --------------------------------------------------------
+    # SONUÇ KARTLARI
+    # --------------------------------------------------------
+    st.markdown(f"<div class='section-title'>{'Tahmin Sonucu' if is_tr else 'Prediction Result'}</div>", unsafe_allow_html=True)
 
-    # ========================================================
-    # 14. RESULT CARDS
-    # ========================================================
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        metric_card("Tahmini Derece" if is_tr else "Predicted Time", f"{prediction:.2f} sn", style_display)
+    with m2:
+        metric_card("Grup Ortalaması" if is_tr else "Group Mean", "-" if np.isnan(group_mean) else f"{group_mean:.2f} sn", age_group_display)
+    with m3:
+        diff_value = "-" if np.isnan(difference) else f"{difference:.2f} sn"
+        metric_card("Fark" if is_tr else "Difference", diff_value, "Negatif değer daha hızlıdır" if is_tr else "Negative value is faster")
+    with m4:
+        pct_value = "-" if np.isnan(percentile) else f"%{percentile:.1f}"
+        metric_card("Yüzdelik" if is_tr else "Percentile", pct_value, level_text)
 
-    st.success(
-        f"🏁 Tahmini {style_display} Derecesi: {prediction:.2f} sn"
-        if is_tr else
-        f"🏁 Predicted {style_display} Time: {prediction:.2f} s"
+    st.markdown(
+        f"<div class='success-box'><b>{stars} {level_text}</b><br>{ai_comment}</div>",
+        unsafe_allow_html=True,
     )
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Tahmin" if is_tr else "Prediction", f"{prediction:.2f} sn")
-    col2.metric("Grup Ortalaması" if is_tr else "Group Mean", "—" if pd.isna(group_mean) else f"{group_mean:.2f} sn")
-    col3.metric("Fark" if is_tr else "Difference", "—" if pd.isna(difference) else f"{difference:.2f} sn")
-    col4.metric("Yüzdelik" if is_tr else "Percentile", "—" if pd.isna(percentile) else f"%{percentile:.1f}")
-
-    st.subheader("📈 Performans Yorumu" if is_tr else "📈 Performance Interpretation")
-    st.write(f"**{stars} {comment}**")
-
-    if not pd.isna(error_band):
-        st.warning(
-            f"Bu tahmin yaklaşık ±{error_band:.2f} sn hata payı ile yorumlanmalıdır. Hata kaynağı: {error_source}."
-            if is_tr else
-            f"This prediction should be interpreted with an approximate ±{error_band:.2f} s error band. Error source: {error_source}."
+    if not np.isnan(err):
+        st.markdown(
+            f"<div class='warning-box'><b>{'Tahmin hata aralığı' if is_tr else 'Prediction error margin'}:</b> ±{err:.2f} sn. {'Bu değer modelin ortalama hata göstergesine göre yorumlanmalıdır.' if is_tr else 'This value should be interpreted according to the model average error metric.'}</div>",
+            unsafe_allow_html=True,
         )
 
-    # ========================================================
-    # 15. COACHING DECISION SUPPORT
-    # ========================================================
+    # --------------------------------------------------------
+    # GÜÇLÜ VE GELİŞTİRİLEBİLİR ALANLAR
+    # --------------------------------------------------------
+    st.markdown(f"<div class='section-title'>{'Karar Destek Analizi' if is_tr else 'Decision Support Analysis'}</div>", unsafe_allow_html=True)
+    s_col, w_col = st.columns(2)
+    with s_col:
+        render_list("Güçlü Alanlar" if is_tr else "Strong Areas", strong, is_strong=True)
+    with w_col:
+        render_list("Geliştirilebilir Alanlar" if is_tr else "Development Areas", weak, is_strong=False)
 
-    st.subheader("🧠 Antrenör Karar Destek Yorumu" if is_tr else "🧠 Coaching Decision Support")
-
-    summary_lines = coaching_summary_tr(percentile, difference, error_band, strongest, weakest) if is_tr else coaching_summary_en(percentile, difference, error_band, strongest, weakest)
-    for line in summary_lines:
-        st.write(f"- {line}")
-
-    # ========================================================
-    # 16. PROFILE TABLE
-    # ========================================================
-
-    if not profile_df.empty:
-        st.subheader("📊 Sporcu Profil Analizi" if is_tr else "📊 Athlete Profile Analysis")
-
-        display_df = profile_df.copy()
-        display_df["Ölçüm" if is_tr else "Feature"] = display_df["feature"].map(FEATURE_LABELS_TR if is_tr else FEATURE_LABELS_EN)
-        display_df["Girilen Değer" if is_tr else "Input Value"] = display_df["value"].round(2)
-        display_df["Grup Ortalaması" if is_tr else "Group Mean"] = display_df["group_mean"].round(2)
-        display_df["Profil Skoru" if is_tr else "Profile Score"] = display_df["adjusted_z"].round(2)
-        display_df["Yorum" if is_tr else "Interpretation"] = display_df["interpretation"]
-
-        keep_cols = [
-            "Ölçüm" if is_tr else "Feature",
-            "Girilen Değer" if is_tr else "Input Value",
-            "Grup Ortalaması" if is_tr else "Group Mean",
-            "Profil Skoru" if is_tr else "Profile Score",
-            "Yorum" if is_tr else "Interpretation",
-        ]
-
-        st.dataframe(display_df[keep_cols], use_container_width=True)
-
-        strengths = display_df[display_df["interpretation"].isin(["Güçlü yön", "Strength"])]
-        developments = display_df[display_df["interpretation"].isin(["Gelişim alanı", "Development area"])]
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("#### ✅ Güçlü Yönler" if is_tr else "#### ✅ Strengths")
-            if strengths.empty:
-                st.write("Belirgin güçlü yön saptanmadı." if is_tr else "No clear strength was identified.")
-            else:
-                for _, row in strengths.head(5).iterrows():
-                    st.write(f"- {row['Ölçüm' if is_tr else 'Feature']}")
-
-        with c2:
-            st.markdown("#### 🔧 Gelişim Alanları" if is_tr else "#### 🔧 Development Areas")
-            if developments.empty:
-                st.write("Belirgin gelişim alanı saptanmadı." if is_tr else "No clear development area was identified.")
-            else:
-                for _, row in developments.head(5).iterrows():
-                    st.write(f"- {row['Ölçüm' if is_tr else 'Feature']}")
-
-    # ========================================================
-    # 17. RADAR CHART
-    # ========================================================
-
-    if score_dict:
-        st.subheader("🕸️ Performans Profil Grafiği" if is_tr else "🕸️ Performance Profile Chart")
-        radar_buffer = create_radar_chart(score_dict)
-        if radar_buffer:
-            st.image(radar_buffer, use_container_width=False)
-
-    # ========================================================
-    # 18. MODEL INFORMATION
-    # ========================================================
-
-    with st.expander("🧪 Model Doğruluk Bilgileri" if is_tr else "🧪 Model Accuracy Information", expanded=True):
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Model", str(model_info.get("model", "—")))
-        m2.metric("n", str(model_info.get("n_total", "—")))
-        m3.metric("MAE", str(model_info.get("mae", "—")))
-        m4.metric("R²", str(model_info.get("r2", "—")))
-
-        st.write(f"**RMSE:** {model_info.get('rmse', '—')}")
-        st.write(f"**MAPE:** {model_info.get('mape', '—')}")
-        st.write(f"**Pearson r:** {model_info.get('pearson_r', '—')}")
-        st.write(f"**CV R²:** {model_info.get('cv_r2', '—')} ± {model_info.get('cv_std', '—')}")
-        st.write(f"**Minimum hata / Minimum error:** {model_info.get('min_error', '—')}")
-        st.write(f"**Maksimum hata / Maximum error:** {model_info.get('max_error', '—')}")
-
-    # ========================================================
-    # 19. PDF REPORT
-    # ========================================================
-
-    if is_tr:
-        report_sections = [
-            ("SPORCU BILGILERI", [
-                f"Ad Soyad: {athlete_name}",
-                f"Kulup: {club_name}",
-                f"Antrenor: {coach_name}",
-                f"Stil: {style_display}",
-                f"Cinsiyet: {sex_display}",
-                f"Yas Grubu: {age_group}",
-            ]),
-            ("TAHMIN SONUCU", [
-                f"Tahmini Derece: {prediction:.2f} sn",
-                f"Grup Ortalamasi: {'-' if pd.isna(group_mean) else f'{group_mean:.2f} sn'}",
-                f"Fark: {'-' if pd.isna(difference) else f'{difference:.2f} sn'}",
-                f"Performans Yuzdeligi: {'-' if pd.isna(percentile) else f'%{percentile:.1f}'}",
-                f"Performans Yorumu: {comment}",
-                f"Tahmin Hata Payi: {'-' if pd.isna(error_band) else f'+/- {error_band:.2f} sn'}",
-            ]),
-            ("ANTRENOR KARAR DESTEK YORUMU", summary_lines),
-            ("MODEL BILGILERI", [
-                f"Model: {model_info.get('model', '-')}",
-                f"Toplam Veri: {model_info.get('n_total', '-')}",
-                f"Egitim Verisi: {model_info.get('n_train', '-')}",
-                f"Bagimsiz Test Verisi: {model_info.get('n_test', '-')}",
-                f"MAE: {model_info.get('mae', '-')}",
-                f"RMSE: {model_info.get('rmse', '-')}",
-                f"MAPE: {model_info.get('mape', '-')}",
-                f"R2: {model_info.get('r2', '-')}",
-                f"Pearson r: {model_info.get('pearson_r', '-')}",
-                f"CV R2: {model_info.get('cv_r2', '-')} +/- {model_info.get('cv_std', '-')}",
-            ]),
-            ("GIRILEN OLCUMLER", [
-                f"{FEATURE_LABELS_TR.get(k, k)}: {v}" for k, v in inputs.items()
-            ]),
-        ]
-        pdf_title = f"{style_display} Tahmin ve Karar Destek Raporu"
-        pdf_file_name = f"{style}_{age_group}_{sex}_{report_id}_swimml_v2_rapor.pdf"
-        download_label = "📄 PDF Raporu İndir"
+    # --------------------------------------------------------
+    # PROFİL GRAFİĞİ
+    # --------------------------------------------------------
+    st.markdown(f"<div class='section-title'>{'Profil Grafiği' if is_tr else 'Profile Chart'}</div>", unsafe_allow_html=True)
+    profile_chart_df = profile_df.dropna().copy()
+    if not profile_chart_df.empty:
+        st.bar_chart(profile_chart_df.set_index("Alan"), use_container_width=True)
+        st.caption("Profil puanları, sporcunun seçilen referans grubuna göre yaklaşık yüzdelik konumunu gösterir." if is_tr else "Profile scores show the athlete's approximate percentile position relative to the selected reference group.")
     else:
-        report_sections = [
-            ("ATHLETE INFORMATION", [
-                f"Athlete Name: {athlete_name}",
-                f"Club: {club_name}",
-                f"Coach: {coach_name}",
-                f"Stroke: {style_display}",
-                f"Sex: {sex_display}",
-                f"Age Group: {age_group}",
-            ]),
-            ("PREDICTION RESULT", [
-                f"Predicted Time: {prediction:.2f} s",
-                f"Group Mean: {'-' if pd.isna(group_mean) else f'{group_mean:.2f} s'}",
-                f"Difference: {'-' if pd.isna(difference) else f'{difference:.2f} s'}",
-                f"Performance Percentile: {'-' if pd.isna(percentile) else f'%{percentile:.1f}'}",
-                f"Performance Interpretation: {comment}",
-                f"Prediction Error Band: {'-' if pd.isna(error_band) else f'+/- {error_band:.2f} s'}",
-            ]),
-            ("COACHING DECISION SUPPORT", summary_lines),
-            ("MODEL INFORMATION", [
-                f"Model: {model_info.get('model', '-')}",
-                f"Total Sample: {model_info.get('n_total', '-')}",
-                f"Training Sample: {model_info.get('n_train', '-')}",
-                f"Independent Test Sample: {model_info.get('n_test', '-')}",
-                f"MAE: {model_info.get('mae', '-')}",
-                f"RMSE: {model_info.get('rmse', '-')}",
-                f"MAPE: {model_info.get('mape', '-')}",
-                f"R2: {model_info.get('r2', '-')}",
-                f"Pearson r: {model_info.get('pearson_r', '-')}",
-                f"CV R2: {model_info.get('cv_r2', '-')} +/- {model_info.get('cv_std', '-')}",
-            ]),
-            ("ENTERED MEASUREMENTS", [
-                f"{FEATURE_LABELS_EN.get(k, k)}: {v}" for k, v in inputs.items()
-            ]),
-        ]
-        pdf_title = f"{style_display} Prediction and Decision Support Report"
-        pdf_file_name = f"{style}_{age_group}_{sex}_{report_id}_swimml_v2_report.pdf"
-        download_label = "📄 Download PDF Report"
+        st.info("Profil grafiği için yeterli referans veri bulunamadı." if is_tr else "Insufficient reference data for the profile chart.")
 
-    pdf = create_pdf_report(pdf_title, report_sections, report_id)
+    # --------------------------------------------------------
+    # MODEL BİLGİLERİ
+    # --------------------------------------------------------
+    with st.expander("Model Doğruluk ve Metadata Bilgileri" if is_tr else "Model Accuracy and Metadata Information", expanded=False):
+        render_model_metrics(model_info, is_tr)
+
+    # --------------------------------------------------------
+    # BİLİMSEL UYARI
+    # --------------------------------------------------------
+    st.markdown(
+        f"<div class='danger-box'><b>{'Bilimsel Uyarı' if is_tr else 'Scientific Notice'}:</b> {'Bu yazılım antrenörlük kararlarını desteklemek için geliştirilmiştir. Tahmin sonuçları sporcu seçimi, performans değerlendirmesi veya sağlıkla ilgili kararlar için tek başına kesin karar aracı olarak kullanılmamalıdır.' if is_tr else 'This software is designed to support coaching decisions. Prediction results should not be used as the sole decision-making tool for athlete selection, performance evaluation, or health-related decisions.'}</div>",
+        unsafe_allow_html=True,
+    )
+
+    # --------------------------------------------------------
+    # PDF RAPOR
+    # --------------------------------------------------------
+    pdf = create_pdf_report(
+        is_tr=is_tr,
+        report_id=report_id,
+        athlete_name=athlete_name,
+        club_name=club_name,
+        coach_name=coach_name,
+        style_display=style_display,
+        sex_display=sex_display,
+        age_group_display=age_group_display,
+        prediction=prediction,
+        group_mean=group_mean,
+        difference=difference,
+        percentile=percentile,
+        error_value=err,
+        comment=level_text,
+        ai_comment=ai_comment,
+        strong=strong,
+        weak=weak,
+        profile_df=profile_df,
+        model_info=model_info,
+    )
+
+    file_name = f"{model_key}_{report_id}_swimml_pro_report.pdf"
     st.download_button(
-        label=download_label,
+        label="📄 PDF Raporu İndir" if is_tr else "📄 Download PDF Report",
         data=pdf,
-        file_name=pdf_file_name,
+        file_name=file_name,
         mime="application/pdf",
-        use_container_width=True,
     )
 
 # ============================================================
-# 20. FOOTER
+# 12. ALT BİLGİ
 # ============================================================
 
 st.markdown("---")
-
 if is_tr:
     st.markdown(
         f"""
-        ### ℹ️ {APP_VERSION} Hakkında
-
-        **Geliştiren:** Tuğrul Özkadı & Araştırma Ekibi  
-        **Kurum:** Hitit Üniversitesi Spor Bilimleri Fakültesi  
-        **Amaç:** Bilimsel araştırma, eğitim ve antrenörlük karar destek süreci.
-
-        Bu uygulama, genç yüzücülerde 50 m performans tahmini yapmak ve antrenörlük kararlarını desteklemek amacıyla geliştirilmiştir. Tahmin sonuçları tek başına kesin karar aracı değildir; teknik gözlem, yarış performansı ve uzman antrenör değerlendirmesiyle birlikte yorumlanmalıdır.
-
-        © 2026 Tuğrul Özkadı & Araştırma Ekibi. Tüm hakları saklıdır.
-        """
+        <div class="small-note">
+        <b>{APP_VERSION}</b><br>
+        Geliştiren: <b>Tuğrul Özkadı & Araştırma Ekibi</b><br>
+        Hitit Üniversitesi Spor Bilimleri Fakültesi<br><br>
+        Bu uygulama bilimsel araştırma, eğitim ve antrenörlük karar destek amacıyla geliştirilmiştir.
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 else:
     st.markdown(
         f"""
-        ### ℹ️ About {APP_VERSION}
-
-        **Developed by:** Tuğrul Özkadı & Research Team  
-        **Institution:** Hitit University Faculty of Sport Sciences  
-        **Purpose:** Scientific research, education and coaching decision support.
-
-        This application has been developed to predict 50 m swimming performance in young swimmers and to support coaching decisions. Prediction results are not stand-alone final decisions; they should be interpreted together with technical observation, race performance and expert coaching evaluation.
-
-        © 2026 Tuğrul Özkadı & Research Team. All rights reserved.
-        """
+        <div class="small-note">
+        <b>{APP_VERSION}</b><br>
+        Developed by: <b>Tuğrul Özkadı & Research Team</b><br>
+        Hitit University Faculty of Sport Sciences<br><br>
+        This application was developed for scientific research, education, and coaching decision support purposes.
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
