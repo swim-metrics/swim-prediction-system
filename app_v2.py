@@ -388,6 +388,30 @@ def inject_css():
             margin: 14px 0;
         }}
 
+
+
+        /* PDF indirme butonu - mobil ve masaüstü görünürlük */
+        .stDownloadButton > button {
+            background: linear-gradient(135deg, {TURQUOISE} 0%, {PRIMARY_DARK} 100%) !important;
+            color: #FFFFFF !important;
+            border: none !important;
+            border-radius: 18px !important;
+            padding: 14px 22px !important;
+            font-size: 17px !important;
+            font-weight: 950 !important;
+            min-height: 54px !important;
+            box-shadow: 0 14px 28px rgba(0,184,200,0.24) !important;
+        }
+        .stDownloadButton > button * {
+            color: #FFFFFF !important;
+            opacity: 1 !important;
+            font-weight: 950 !important;
+        }
+        .stDownloadButton > button:hover {
+            background: linear-gradient(135deg, {PRIMARY_DARK} 0%, {TURQUOISE} 100%) !important;
+            color: #FFFFFF !important;
+        }
+
         /* MOBİL ÖZEL */
         @media (max-width: 768px) {{
             .block-container {{
@@ -1233,7 +1257,7 @@ if run_prediction:
     pdf = make_pdf_report(is_tr, report_data)
     pdf_name = f"swimml_pro_{model_key}_{report_id}.pdf"
     st.download_button(
-        label="📄 PDF Raporu İndir" if is_tr else "📄 Download PDF Report",
+        label="📄 PDF Raporunu İndir" if is_tr else "📄 Download PDF Report",
         data=pdf,
         file_name=pdf_name,
         mime="application/pdf"
