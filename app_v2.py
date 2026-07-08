@@ -1014,16 +1014,29 @@ def categorize_features(features):
 
 df, metadata = load_system()
 
-# Dil seçimi ana ekranda sabit
-language = st.radio(
-    "Dil / Language",
-    ["🇹🇷 Türkçe", "🇺🇸 English"],
-    horizontal=True,
-    index=0
+# Dil seçimi artık ana ekranda, analiz grubu seçiminden hemen önce görünür bir kart olarak yer alır.
+LANGUAGE_OPTIONS = ["🇹🇷 Türkçe", "🇺🇸 English"]
+if "language_choice" not in st.session_state:
+    st.session_state["language_choice"] = LANGUAGE_OPTIONS[0]
+
+is_tr = st.session_state["language_choice"].startswith("🇹🇷")
+
+render_hero(is_tr)
+
+# Görünür dil seçimi bölümü
+render_section("🌐 Dil Seçimi / Language")
+language = st.selectbox(
+    "Uygulama dili / Application language",
+    LANGUAGE_OPTIONS,
+    index=LANGUAGE_OPTIONS.index(st.session_state["language_choice"]),
+    key="language_choice",
 )
 is_tr = language.startswith("🇹🇷")
 
-render_hero(is_tr)
+st.markdown(
+    f"<div class='selected-group'>{'Seçilen dil' if is_tr else 'Selected language'}: {language}</div>",
+    unsafe_allow_html=True
+)
 
 # Analiz grubu seçimi
 render_section("📌 Analiz Grubu Seçimi" if is_tr else "📌 Analysis Group Selection")
