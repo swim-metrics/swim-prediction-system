@@ -391,7 +391,7 @@ def inject_css():
 
 
         /* PDF indirme butonu - mobil ve masaüstü görünürlük */
-        .stDownloadButton > button {
+        .stDownloadButton > button {{
             background: linear-gradient(135deg, {TURQUOISE} 0%, {PRIMARY_DARK} 100%) !important;
             color: #FFFFFF !important;
             border: none !important;
@@ -401,16 +401,16 @@ def inject_css():
             font-weight: 950 !important;
             min-height: 54px !important;
             box-shadow: 0 14px 28px rgba(0,184,200,0.24) !important;
-        }
-        .stDownloadButton > button * {
+        }}
+        .stDownloadButton > button * {{
             color: #FFFFFF !important;
             opacity: 1 !important;
             font-weight: 950 !important;
-        }
-        .stDownloadButton > button:hover {
+        }}
+        .stDownloadButton > button:hover {{
             background: linear-gradient(135deg, {PRIMARY_DARK} 0%, {TURQUOISE} 100%) !important;
             color: #FFFFFF !important;
-        }
+        }}
 
         /* MOBİL ÖZEL */
         @media (max-width: 768px) {{
