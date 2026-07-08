@@ -451,6 +451,7 @@ if st.button(button_text):
             data=pdf,
             file_name=f"{style}_{age_group}_{sex}_{report_id}_prediction_report.pdf",
             mime="application/pdf"
+        )
 # ============================================================
 # FOOTER / COPYRIGHT NOTICE
 # ============================================================
